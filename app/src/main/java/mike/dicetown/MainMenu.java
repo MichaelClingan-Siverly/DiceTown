@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 public class MainMenu extends AppCompatActivity {
-    private String userName = "";
     private String townName = "";
     private String hostIP = "";
     private boolean host = false;
@@ -28,27 +27,24 @@ public class MainMenu extends AppCompatActivity {
     }
 
     public void joinListener(View v){
-        getName();
         getTownName();
 
-        if(nameEntered() && townNameEntered()) {
-            AlertDialog.OnClickListener dialogListener = new DialogInterface.OnClickListener(){
+        if(townNameEntered()) {
+            AlertDialog.OnClickListener dialogListener = new DialogInterface.OnClickListener() {
                 @Override
-                public void onClick(DialogInterface dialog, int which){
-                    if(which == DialogInterface.BUTTON_POSITIVE){
+                public void onClick(DialogInterface dialog, int which) {
+                    if (which == DialogInterface.BUTTON_POSITIVE) {
                         hostIP = ipEdit.getText().toString();
                         try {
-                            if(!hostIP.equals("") && InetAddress.getByName(hostIP).isReachable(500)) {
+                            if (!hostIP.equals("") && InetAddress.getByName(hostIP).isReachable(500)) {
                                 dialog.dismiss();
                                 goToLobby();
-                            }
-                            else if(!hostIP.equals(""))
+                            } else if (!hostIP.equals(""))
                                 makeToast("Could not connect to host.");
                             else
                                 makeToast("no IP entered");
 
-                        }
-                        catch (IOException e) {
+                        } catch (IOException e) {
                             makeToast("Unknown host. Is the IP entered correctly?");
                         }
                     }
@@ -65,60 +61,43 @@ public class MainMenu extends AppCompatActivity {
             ipAlert.setNegativeButton("Cancel", dialogListener);
             ipAlert.show();
         }
-        else if(!nameEntered() && !townNameEntered())
-            makeToast("no player or town name");
-        else if(!nameEntered())
-            makeToast("no player name");
         else
             makeToast("no town name");
     }
 
     public void hostListener(View v){
-        getName();
         getTownName();
-        if(nameEntered() && townNameEntered()) {
+        if(townNameEntered()) {
             host = true;
             goToLobby();
         }
-        else if(!nameEntered() && !townNameEntered())
-            makeToast("no player or town name");
-        else if(!nameEntered())
-            makeToast("no player name");
         else
             makeToast("no town name");
     }
 
     private void goToLobby(){
         Context context = this;
-        Intent intent = new Intent(context, DiceTown.class);
-        intent.putExtra("host", host);
-        intent.putExtra("name", userName);
-        intent.putExtra("town", townName);
+        Intent intent = new Intent(context, Lobby.class);
+        intent.putExtra(Lobby.booleanExtraKeyHost, host);
+        intent.putExtra(Lobby.stringExtraKeyName, townName);
         if(!hostIP.equals(""))
             intent.putExtra("IP", hostIP);
         startActivity(intent);
         finish();
     }
 
-    private void getName(){
-        EditText editText = (EditText)findViewById(R.id.mainMenuEditName);
-        userName = editText.getText().toString();
-    }
     private void getTownName(){
         EditText editText = (EditText)findViewById(R.id.mainMenuEditTownName);
         townName = editText.getText().toString();
     }
 
-    private boolean nameEntered(){
-        return !userName.equals("");
-    }
     private boolean townNameEntered(){
         return !townName.equals("");
     }
 
     private void makeToast(String message){
         Toast toast = Toast.makeText(this, message, Toast.LENGTH_SHORT);
-        toast.setGravity(Gravity.CENTER, 0, 0);
+        toast.setGravity(Gravity.BOTTOM, 0, 0);
         toast.show();
     }
 }

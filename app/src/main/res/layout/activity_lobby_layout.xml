@@ -4,17 +4,51 @@
     android:layout_height="match_parent"
     android:background="@drawable/background">
 
-    <GridLayout
-        android:id="@+id/lobbyGrid"
-        android:layout_width="match_parent"
+    <ScrollView
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        />
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:background="#80b3b3b3">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+            <LinearLayout
+                android:id="@+id/lobbyNameLayout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+            <LinearLayout
+                android:id="@+id/lobbyIconLayout"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:background="@android:color/transparent"
+                android:layout_marginStart="50dp"
+                />
+        </LinearLayout>
+    </ScrollView>
 
     <TextView
         android:id="@+id/ipAddress"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerHorizontal="true"
-        android:layout_alignParentBottom="true"/>
+        android:layout_alignParentBottom="true"
+        android:textColor="@android:color/black"
+        android:background="#8066d9ff"
+        android:textSize="20sp"/>
+
+    <!--Must set the text color myself-->
+    <Button
+        android:id="@+id/lobbyButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/ipAddress"
+        android:layout_marginBottom="20dp"
+        android:layout_centerHorizontal="true"
+        android:textSize="25sp"
+        android:textColor="#FFFFFF"
+        android:background="#007399"/>
 
 </RelativeLayout>

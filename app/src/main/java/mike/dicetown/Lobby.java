@@ -4,15 +4,25 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.Color;
+import android.media.Image;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.support.v4.util.ArrayMap;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.GridLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -27,22 +37,105 @@ import mike.socketthreading.SocketService;
  * https://developer.android.com/reference/android/app/Service.html
  */
 
-public class DiceTown extends AppCompatActivity{
+public class Lobby extends AppCompatActivity{
+    /** One of the extras that are checked when creating this activity. indicate if player is host*/
+    public final static String booleanExtraKeyHost = "host";
+    /** One of the extras that are checked when creating this activity. name of the town*/
+    public final static String stringExtraKeyName = "townName";
+    private String myTownName;
+
     private boolean host;
     private String hostIP = null;
-    public String myName;
-    public String myTownName;
+    private ArrayMap<String, PlayerReadyContainer> allPlayers;
 
     private void getExtras(){
         Intent intent = getIntent();
         Bundle extras = intent.getExtras();
         if(extras != null) {
-            host = extras.getBoolean("host", false);
-            myName = extras.getString("name", "a man has no name");
-            myTownName = extras.getString("town", "a town has no name");
+            host = extras.getBoolean(booleanExtraKeyHost, false);
+            myTownName = extras.getString(stringExtraKeyName, "a town has no name");
             //player is joining a game. hostIP has been checked before leaving the mainMenu
             if(extras.containsKey("IP"))
                 hostIP = extras.getString("IP");
+        }
+
+        allPlayers = new ArrayMap<>();
+        addPlayerToList(myTownName);
+    }
+
+    private void changeReadiness(String townName){
+        if(allPlayers.containsKey(townName)){
+            PlayerReadyContainer container = allPlayers.get(townName);
+            container.ready = !container.ready;
+            if(container.ready) {
+                container.readyIcon.setImageResource(R.drawable.checkmark);
+                Button b = (Button)findViewById(R.id.lobbyButton);
+                if(checkIfAllReady() && host) {
+                    b.setText(R.string.lobbyStartGame);
+                    b.setClickable(true);
+                }
+                //only change a player's button's function if they're the one who changed readiness
+                else if(townName.equals(myTownName) && !host)
+                    b.setText(R.string.lobbyUnReady);
+            }
+            else {
+                container.readyIcon.setImageResource(R.drawable.unready);
+                Button b = (Button)findViewById(R.id.lobbyButton);
+                if(!checkIfAllReady() && host){
+                    b.setText("");
+                    b.setClickable(false);
+                }
+                //only change a player's button's function if they're the one who changed readiness
+                else if(townName.equals(myTownName) && !host)
+                    b.setText(R.string.lobbyReady);
+            }
+        }
+    }
+
+    private boolean checkIfAllReady(){
+        for(int i = 0; i < allPlayers.size(); i++){
+            PlayerReadyContainer cont = allPlayers.valueAt(i);
+            if(!cont.ready)
+                return false;
+        }
+        //not ready if host is the only player
+        return allPlayers.size() > 1;
+    }
+
+    private void addPlayerToList(String townName){
+        allPlayers.put(townName, new PlayerReadyContainer());
+        //The left column is for the player's town name
+        TextView name = new TextView(getApplicationContext());
+        name.setText(townName);
+        name.setTextColor(Color.BLACK);
+        //I store the text height because I want the icons to be as tall (and wide) as the corresponding text
+        name.measure(0,0);
+        int textHeight = name.getMeasuredHeight();
+        LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
+        layout.addView(name);
+
+        //the right column is for the player's ready status
+        ImageView image = allPlayers.get(townName).readyIcon;
+        ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(textHeight, textHeight);
+        image.setLayoutParams(params);
+        layout = (LinearLayout)findViewById(R.id.lobbyIconLayout);
+        layout.addView(image);
+
+        if(host && townName.equals(myTownName)){
+            changeReadiness(myTownName);
+            Button b = (Button)findViewById(R.id.lobbyButton);
+            b.setClickable(false);
+        }
+    }
+
+    private class PlayerReadyContainer{
+        boolean ready;
+        ImageView readyIcon;
+        PlayerReadyContainer(){
+            ready = false;
+            readyIcon = new ImageView(Lobby.this);
+            readyIcon.setImageResource(R.drawable.unready);
+            readyIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         }
     }
 
@@ -69,13 +162,15 @@ public class DiceTown extends AppCompatActivity{
     }
 
     private void startService(){
-        Intent intent = new Intent(DiceTown.this, SocketService.class);
+        Intent intent = new Intent(Lobby.this, SocketService.class);
         if(host) {
             displayHostIP();
         }
         else{
             intent.putExtra(SocketService.MAKE_AS_CLIENT, hostIP);
         }
+        //only name in there so far is the player's town name
+        intent.putExtra("name", allPlayers.keyAt(0));
         startService(intent);
         doBindService();
     }
@@ -83,26 +178,21 @@ public class DiceTown extends AppCompatActivity{
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getExtras();
         setContentView(R.layout.activity_lobby_layout);
-        startService();
+        getExtras();
+        //TODO uncomment this
+//        startService();
+        if(host){
+            Button button = (Button)findViewById(R.id.lobbyButton);
+            button.setClickable(false);
 
-        //TODO make a lobby layout - Multiple ImageViews will have to be made
-        ImageView readyImage = new ImageView(this);
-        readyImage.setImageResource(R.drawable.checkmark);
-        readyImage.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-
-        ImageView unreadyImage = new ImageView(this);
-        unreadyImage.setImageResource(R.drawable.unready);
-        readyImage.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        }
     }
 
     /** Messenger for communicating with service. */
     Messenger mService = null;
     /** Flag indicating whether we have called bind on the service. */
     boolean mIsBound;
-    /** Some text view we are using to show state information. */
-    TextView mCallbackText; //TODO get rid of this. I'm sure my family won't care to know whats up with the Service
 
     /**
      * Handler of incoming messages from service.
@@ -111,7 +201,7 @@ public class DiceTown extends AppCompatActivity{
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
-                //TODO handle messages received from the SocketService
+                //TODO handle messages received from the SocketService (define what they should be)
                 default:
                     super.handleMessage(msg);
             }
@@ -135,7 +225,6 @@ public class DiceTown extends AppCompatActivity{
             // service through an IDL interface, so get a client-side
             // representation of that from the raw service object.
             mService = new Messenger(service);
-            mCallbackText.setText("Attached.");
 
             // We want to monitor the service for as long as we are
             // connected to it.
@@ -157,7 +246,7 @@ public class DiceTown extends AppCompatActivity{
             }
 
             // As part of the sample, tell the user what happened.
-            Toast.makeText(DiceTown.this, "remove service connected",
+            Toast.makeText(Lobby.this, "remove service connected",
                     Toast.LENGTH_SHORT).show();
         }
 
@@ -165,10 +254,9 @@ public class DiceTown extends AppCompatActivity{
             // This is called when the connection with the service has been
             // unexpectedly disconnected -- that is, its process crashed.
             mService = null;
-            mCallbackText.setText("Disconnected.");
 
             // As part of the sample, tell the user what happened.
-            Toast.makeText(DiceTown.this, "remote service disconnected",
+            Toast.makeText(Lobby.this, "remote service disconnected",
                     Toast.LENGTH_SHORT).show();
         }
     };
@@ -177,10 +265,9 @@ public class DiceTown extends AppCompatActivity{
         // Establish a connection with the service.  We use an explicit
         // class name because there is no reason to be able to let other
         // applications replace our component.
-        bindService(new Intent(DiceTown.this,
+        bindService(new Intent(Lobby.this,
                 SocketService.class), mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
-        mCallbackText.setText("Binding.");
     }
 
     void doUnbindService() {
@@ -202,8 +289,10 @@ public class DiceTown extends AppCompatActivity{
             // Detach our existing connection.
             unbindService(mConnection);
             mIsBound = false;
-            mCallbackText.setText("Unbinding.");
         }
     }
-
+    @Override
+    public void onBackPressed(){
+        //TODO close any sockets and go back to MainMenu
+    }
 }

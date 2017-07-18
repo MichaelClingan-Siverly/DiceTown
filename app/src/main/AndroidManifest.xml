@@ -27,7 +27,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".DiceTown"
+            android:name=".Lobby"
             android:screenOrientation="portrait" />
 
         <service
