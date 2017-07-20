@@ -31,7 +31,8 @@
         android:layout_marginTop="75dp"
         android:textColor="@android:color/black"
         android:textColorHint="@android:color/white"
-        android:background="#DD686868"/>
+        android:background="#DD686868"
+        android:singleLine="true"/>
 
     <Button
         android:layout_width="250dp"

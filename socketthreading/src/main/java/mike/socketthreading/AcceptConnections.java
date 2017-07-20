@@ -1,65 +1,78 @@
 package mike.socketthreading;
 
-import android.os.Bundle;
-import android.os.IBinder;
-import android.os.Message;
-import android.os.Messenger;
-import android.os.RemoteException;
+import android.os.AsyncTask;
+import android.os.Handler;
+import android.util.Log;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-/**
- * Class used by the SocketService to allow SocketServers to accept connections on a remote thread.
- * As such, it's intended to only be used when the user is a game host
- *
- * Created by mike on 7/15/2017.
- */
+class AcceptConnections extends AsyncTask <Void, Socket, Void>{
+    private ReceivesNewConnections callback;
+    // designate a port
+    //TODO let users change this if necessary (would have to display it on the host's UI and allow clients to enter it)
+    public static final int SERVERPORT = 49255;
 
-class AcceptConnections implements Runnable{
-    private ServerSocket serverSocket;
-    //used to send messages back to the service. I hope.
-    private Messenger callingThreadMessenger;
-    AcceptConnections(ServerSocket serverSocket, IBinder callingThreadBinder){
-        this.serverSocket = serverSocket;
-        callingThreadMessenger = new Messenger(callingThreadBinder);
+    private ServerSocket serverSocket = null;
+
+    AcceptConnections(ReceivesNewConnections sendsNewConnectionsToThis){
+        callback = sendsNewConnectionsToThis;
     }
-    //Only stuff here in run() is executed in a remote thread.
 
-    /**
-     * Accepts connections on the given ServerSocket and returns the local and remote address
-     * as byte arrays contained in a Bundle in a Message sent to the given IBinder
-     * Keys are self-descriptive and are labeled "theirAddress" and "myAddress"
-     */
     @Override
-    public void run() {
+    protected void onPreExecute(){
         try {
-            //Yup, I know it loops until an exception is caught, but I hear that its a
-            // reasonable way to interrupt the accept()
-            while(true) {
-                Socket s = serverSocket.accept();
-                Message msg = Message.obtain();
-                msg.what = SocketService.MSG_CONNECTION_ACCEPTED;
-
-                Bundle bundle = new Bundle();
-                bundle.putByteArray("theirAddress", s.getInetAddress().getAddress());
-                bundle.putByteArray("myAddress", serverSocket.getInetAddress().getAddress());
-                msg.setData(bundle);
-                //tell SocketService that a connection has been established
-                callingThreadMessenger.send(msg);
-            }
-        } catch (IOException | RemoteException e) {
-            //the Android example I used (seen in DiceTown) didn't do anything with this
-            //Not sure if I should do anything here or not
-        }
-    }
-    //Since stopping the accept will escape the loop, the thread will finish execution and stop
-    void stopThread(){
-        try {
-            serverSocket.close();
+            //creates the socket and give the IP back to the service so it can be displayed
+            serverSocket = new ServerSocket(SERVERPORT);
+            callback.setHostIP(serverSocket.getInetAddress().getHostAddress());
+            //I also set a timeout on the accept() so I can occasionally check to see if it should be cancelled
+            serverSocket.setSoTimeout(2000); //2 seconds
         } catch (IOException e) {
-            //don't really care about the exception. I stopped the accept like I wanted to
+            e.printStackTrace();
+        }
+        callback.setHostIP(serverSocket.getInetAddress().getHostAddress());
+    }
+
+    @Override
+    protected Void doInBackground(Void... params) {
+        while(!isCancelled() && serverSocket != null && !serverSocket.isClosed()) {
+            Socket socket = null;
+            try {
+                socket = serverSocket.accept();
+            } catch (IOException e) {
+                //don't particularly care if it times out
+            }
+            if(socket != null)
+                publishProgress(socket);
+        }
+        return null;
+    }
+
+    @Override
+    protected void onProgressUpdate(Socket... progress) {
+        callback.receiveConnection(progress[0]);
+    }
+
+    @Override
+    protected void onPostExecute(Void result) {
+        closeSocket();
+    }
+
+    @Override
+    public void onCancelled(Void result){
+        closeSocket();
+    }
+
+    private void closeSocket() {
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            try {
+                serverSocket.close();
+            } catch (IOException e) {
+                //*shrugs*
+            }
         }
     }
 }

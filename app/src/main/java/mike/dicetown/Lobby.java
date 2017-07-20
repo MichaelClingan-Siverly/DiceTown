@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.graphics.Color;
 import android.media.Image;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -26,6 +28,19 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.nio.ByteOrder;
+import java.util.Enumeration;
+
 import mike.socketthreading.SocketService;
 
 
@@ -33,8 +48,6 @@ import mike.socketthreading.SocketService;
  * Created by mike on 7/11/2017.
  * the pre-game lobby where all players must ready-up before the host may start
  *
- * Used Android Developers References a lot for most of the Service stuff.
- * https://developer.android.com/reference/android/app/Service.html
  */
 
 public class Lobby extends AppCompatActivity{
@@ -63,6 +76,12 @@ public class Lobby extends AppCompatActivity{
         addPlayerToList(myTownName);
     }
 
+    public void lobbyButtonListener(View v){
+        if(checkIfAllReady() && host) {
+            //TODO do whatever is needed to start game
+        }
+    }
+
     private void changeReadiness(String townName){
         if(allPlayers.containsKey(townName)){
             PlayerReadyContainer container = allPlayers.get(townName);
@@ -70,10 +89,11 @@ public class Lobby extends AppCompatActivity{
             if(container.ready) {
                 container.readyIcon.setImageResource(R.drawable.checkmark);
                 Button b = (Button)findViewById(R.id.lobbyButton);
-                if(checkIfAllReady() && host) {
+                /* originally disabled the start button and would re-enable it here, but it
+                   wouldnt work even though isClickable was true. so instead I let it stay
+                   clickable and do another check when its pressed */
+                if(checkIfAllReady() && host)
                     b.setText(R.string.lobbyStartGame);
-                    b.setClickable(true);
-                }
                 //only change a player's button's function if they're the one who changed readiness
                 else if(townName.equals(myTownName) && !host)
                     b.setText(R.string.lobbyUnReady);
@@ -81,10 +101,8 @@ public class Lobby extends AppCompatActivity{
             else {
                 container.readyIcon.setImageResource(R.drawable.unready);
                 Button b = (Button)findViewById(R.id.lobbyButton);
-                if(!checkIfAllReady() && host){
+                if(!checkIfAllReady() && host)
                     b.setText("");
-                    b.setClickable(false);
-                }
                 //only change a player's button's function if they're the one who changed readiness
                 else if(townName.equals(myTownName) && !host)
                     b.setText(R.string.lobbyReady);
@@ -110,21 +128,20 @@ public class Lobby extends AppCompatActivity{
         name.setTextColor(Color.BLACK);
         //I store the text height because I want the icons to be as tall (and wide) as the corresponding text
         name.measure(0,0);
-        int textHeight = name.getMeasuredHeight();
+        int desiredIconSize = name.getMeasuredHeight();
         LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
         layout.addView(name);
 
         //the right column is for the player's ready status
         ImageView image = allPlayers.get(townName).readyIcon;
-        ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(textHeight, textHeight);
+        ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(desiredIconSize, desiredIconSize);
         image.setLayoutParams(params);
         layout = (LinearLayout)findViewById(R.id.lobbyIconLayout);
         layout.addView(image);
 
+        //the host is always ready
         if(host && townName.equals(myTownName)){
             changeReadiness(myTownName);
-            Button b = (Button)findViewById(R.id.lobbyButton);
-            b.setClickable(false);
         }
     }
 
@@ -139,40 +156,12 @@ public class Lobby extends AppCompatActivity{
         }
     }
 
-    /**
-     * displays host's IP address on bottom of screen.
-     * host IP should be set before this is called
-     * Intended to only be used by the host, but can be used by others...although it won't mean much
-     */
-    private void displayHostIP(){
-        if(mService != null) {
-            Message  msg = Message.obtain();
-            msg.what = SocketService.MSG_GET_IP;
-            try {
-                mService.send(msg);
-            } catch (RemoteException e) {
-                Log.d("displayHostIP", e.getLocalizedMessage());
-            }
-            //All of this is test stuff to see the IP address. I need the ipByteArray to open a socket
-            TextView textView = (TextView) findViewById(R.id.ipAddress);
+    public void displayHostIP(String hostAddress){
+        hostIP = hostAddress;
+        TextView textView = (TextView) findViewById(R.id.ipAddress);
 
-            String ipAddress = "IP address: " + hostIP;
-            textView.append(ipAddress);
-        }
-    }
-
-    private void startService(){
-        Intent intent = new Intent(Lobby.this, SocketService.class);
-        if(host) {
-            displayHostIP();
-        }
-        else{
-            intent.putExtra(SocketService.MAKE_AS_CLIENT, hostIP);
-        }
-        //only name in there so far is the player's town name
-        intent.putExtra("name", allPlayers.keyAt(0));
-        startService(intent);
-        doBindService();
+        String ipAddress = "IP address: " + hostAddress;
+        textView.append(ipAddress);
     }
 
     @Override
@@ -180,91 +169,77 @@ public class Lobby extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_lobby_layout);
         getExtras();
-        //TODO uncomment this
-//        startService();
-        if(host){
-            Button button = (Button)findViewById(R.id.lobbyButton);
-            button.setClickable(false);
 
-        }
+        //TODO move the ServerThread to the service
+        //the below lines are used to interact with the ServerThread
+//        SERVERIP = getLocalIpAddress();
+//        serverStatus = (TextView) findViewById(R.id.ipAddress);
+//        Thread thread = new Thread(new ServerThread());
+//        thread.start();
     }
 
-    /** Messenger for communicating with service. */
-    Messenger mService = null;
-    /** Flag indicating whether we have called bind on the service. */
-    boolean mIsBound;
+    @Override
+    public void onBackPressed(){
+        //TODO close any sockets and go back to MainMenu
+    }
 
-    /**
-     * Handler of incoming messages from service.
-     */
-    class IncomingHandler extends Handler {
-        @Override
-        public void handleMessage(Message msg) {
-            switch (msg.what) {
-                //TODO handle messages received from the SocketService (define what they should be)
-                default:
-                    super.handleMessage(msg);
-            }
+    // gets the ip address of your phone's network
+    private String getLocalIpAddress() {
+        WifiManager wifiMan = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        int ipAddressInt = wifiMan.getConnectionInfo().getIpAddress();
+        if (ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN)) {
+            ipAddressInt = Integer.reverseBytes(ipAddressInt);
         }
+        byte[] ipByteArray = BigInteger.valueOf(ipAddressInt).toByteArray();
+
+        try{
+            InetAddress inet = InetAddress.getByAddress(ipByteArray);
+            int cutOff = inet.toString().lastIndexOf('/');
+            return inet.toString().substring(cutOff+1);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+
+        return "error getting address";
     }
 
     /**
-     * Target we publish for clients to send messages to IncomingHandler.
+     * Used Android Developers References a lot for most of the Service stuff.
+     * https://developer.android.com/reference/android/app/Service.html
      */
-    final Messenger mMessenger = new Messenger(new IncomingHandler());
+    private SocketService mBoundService;
+    private boolean mIsBound = false;
 
-    /**
-     * Class for interacting with the main interface of the service.
-     */
     private ServiceConnection mConnection = new ServiceConnection() {
-        public void onServiceConnected(ComponentName className,
-                                       IBinder service) {
+        public void onServiceConnected(ComponentName className, IBinder service) {
             // This is called when the connection with the service has been
             // established, giving us the service object we can use to
-            // interact with the service.  We are communicating with our
-            // service through an IDL interface, so get a client-side
-            // representation of that from the raw service object.
-            mService = new Messenger(service);
+            // interact with the service.  Because we have bound to a explicit
+            // service that we know is running in our own process, we can
+            // cast its IBinder to a concrete class and directly access it.
+            mBoundService = ((SocketService.LocalBinder)service).getService();
 
-            // We want to monitor the service for as long as we are
-            // connected to it.
-            try {
-                Message msg = Message.obtain(null,
-                        SocketService.MSG_REGISTER_CLIENT);
-                msg.replyTo = mMessenger;
-                mService.send(msg);
-
-                // Give it some value as an example.
-//                msg = Message.obtain(null,
-//                        SocketService.MSG_SET_VALUE, this.hashCode(), 0);
-//                mService.send(msg);
-            } catch (RemoteException e) {
-                // In this case the service has crashed before we could even
-                // do anything with it; we can count on soon being
-                // disconnected (and then reconnected if it can be restarted)
-                // so there is no need to do anything here.
-            }
-
-            // As part of the sample, tell the user what happened.
-            Toast.makeText(Lobby.this, "remove service connected",
+            // Tell the user about this for our demo.
+            Toast.makeText(Lobby.this, "socekt service connected",
                     Toast.LENGTH_SHORT).show();
         }
 
         public void onServiceDisconnected(ComponentName className) {
             // This is called when the connection with the service has been
             // unexpectedly disconnected -- that is, its process crashed.
-            mService = null;
-
-            // As part of the sample, tell the user what happened.
-            Toast.makeText(Lobby.this, "remote service disconnected",
+            // Because it is running in our same process, we should never
+            // see this happen.
+            mBoundService = null;
+            Toast.makeText(Lobby.this, "socket service connected",
                     Toast.LENGTH_SHORT).show();
         }
     };
 
     void doBindService() {
         // Establish a connection with the service.  We use an explicit
-        // class name because there is no reason to be able to let other
-        // applications replace our component.
+        // class name because we want a specific service implementation that
+        // we know will be running in our own process (and thus won't be
+        // supporting component replacement by other applications).
         bindService(new Intent(Lobby.this,
                 SocketService.class), mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
@@ -272,27 +247,15 @@ public class Lobby extends AppCompatActivity{
 
     void doUnbindService() {
         if (mIsBound) {
-            // If we have received the service, and hence registered with
-            // it, then now is the time to unregister.
-            if (mService != null) {
-                try {
-                    Message msg = Message.obtain(null,
-                            SocketService.MSG_UNREGISTER_CLIENT);
-                    msg.replyTo = mMessenger;
-                    mService.send(msg);
-                } catch (RemoteException e) {
-                    // There is nothing special we need to do if the service
-                    // has crashed.
-                }
-            }
-
             // Detach our existing connection.
             unbindService(mConnection);
             mIsBound = false;
         }
     }
+
     @Override
-    public void onBackPressed(){
-        //TODO close any sockets and go back to MainMenu
+    protected void onDestroy() {
+        super.onDestroy();
+        doUnbindService();
     }
 }

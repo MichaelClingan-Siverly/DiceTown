@@ -3,6 +3,7 @@ package mike.dicetown;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -13,6 +14,7 @@ import android.widget.Toast;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public class MainMenu extends AppCompatActivity {
     private String townName = "";
@@ -35,18 +37,7 @@ public class MainMenu extends AppCompatActivity {
                 public void onClick(DialogInterface dialog, int which) {
                     if (which == DialogInterface.BUTTON_POSITIVE) {
                         hostIP = ipEdit.getText().toString();
-                        try {
-                            if (!hostIP.equals("") && InetAddress.getByName(hostIP).isReachable(500)) {
-                                dialog.dismiss();
-                                goToLobby();
-                            } else if (!hostIP.equals(""))
-                                makeToast("Could not connect to host.");
-                            else
-                                makeToast("no IP entered");
-
-                        } catch (IOException e) {
-                            makeToast("Unknown host. Is the IP entered correctly?");
-                        }
+                        new CheckAddressTask(hostIP).execute(null, null);
                     }
                 }
             };
@@ -63,6 +54,14 @@ public class MainMenu extends AppCompatActivity {
         }
         else
             makeToast("no town name");
+    }
+
+    private void continueJoining(String text){
+        if(text.equals(CheckAddressTask.successfulReach)){
+            goToLobby();
+        }
+        else
+            makeToast(text);
     }
 
     public void hostListener(View v){
@@ -99,5 +98,47 @@ public class MainMenu extends AppCompatActivity {
         Toast toast = Toast.makeText(this, message, Toast.LENGTH_SHORT);
         toast.setGravity(Gravity.BOTTOM, 0, 0);
         toast.show();
+    }
+
+    private class CheckAddressTask extends AsyncTask<Void, Void, Boolean[]>{
+        String address;
+        private final int UNKNOWN_HOST = 0;  //User wants this to be false (meaning host is known)
+        private final int REACHABLE = 1;     //user wants this to be true
+        private final int NETWORK_ERROR = 2; //true if a network error occured.
+        static final String successfulReach = "Host is reachable";
+
+        CheckAddressTask(String address){
+            this.address = address;
+        }
+        @Override
+        protected Boolean[] doInBackground(Void... params) {
+            Boolean[] results = new Boolean[]{null, null, null};
+
+
+            try {
+                InetAddress iAddress = InetAddress.getByName(address);
+                results[REACHABLE] = iAddress.isReachable(500);
+            }
+            catch(UnknownHostException e) {
+                results[UNKNOWN_HOST] = true;
+            } catch (IOException e) {
+                results[NETWORK_ERROR] = true;
+            }
+            return results;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean[] result){
+            if(result[REACHABLE] != null) {
+                if(!result[REACHABLE])
+                    continueJoining("Could not connect to host");
+                else
+                    continueJoining(successfulReach);
+            }
+            else if(result[UNKNOWN_HOST])
+                continueJoining("That is not an address");
+            else
+                continueJoining("A network error occurred");
+        }
     }
 }
