@@ -5,41 +5,26 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.graphics.Color;
-import android.media.Image;
-import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.os.RemoteException;
 import android.support.v4.util.ArrayMap;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteOrder;
-import java.util.Enumeration;
 
 import mike.socketthreading.SocketService;
 
@@ -70,6 +55,8 @@ public class Lobby extends AppCompatActivity{
             //player is joining a game. hostIP has been checked before leaving the mainMenu
             if(extras.containsKey("IP"))
                 hostIP = extras.getString("IP");
+            else
+                displayHostIP();
         }
 
         allPlayers = new ArrayMap<>();
@@ -77,8 +64,14 @@ public class Lobby extends AppCompatActivity{
     }
 
     public void lobbyButtonListener(View v){
-        if(checkIfAllReady() && host) {
-            //TODO do whatever is needed to start game
+        if(host){
+            if(checkIfAllReady()) {
+                //TODO do whatever is needed to start game
+            }
+        }
+        else{
+            changeReadiness(myTownName);
+            //TODO send ready/unready status to host
         }
     }
 
@@ -156,11 +149,12 @@ public class Lobby extends AppCompatActivity{
         }
     }
 
-    public void displayHostIP(String hostAddress){
-        hostIP = hostAddress;
+    //only called if the user is a game host
+    public void displayHostIP(){
+        hostIP = getLocalIpAddress();
         TextView textView = (TextView) findViewById(R.id.ipAddress);
 
-        String ipAddress = "IP address: " + hostAddress;
+        String ipAddress = "IP address: " + hostIP;
         textView.append(ipAddress);
     }
 
@@ -169,13 +163,14 @@ public class Lobby extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_lobby_layout);
         getExtras();
+        startService();
+    }
 
-        //TODO move the ServerThread to the service
-        //the below lines are used to interact with the ServerThread
-//        SERVERIP = getLocalIpAddress();
-//        serverStatus = (TextView) findViewById(R.id.ipAddress);
-//        Thread thread = new Thread(new ServerThread());
-//        thread.start();
+    private void startService(){
+        Intent intent = new Intent(Lobby.this, SocketService.class);
+        //TODO add enough to intent to show that user is host or not
+        //binding starts the service, and I'd rather bind since I want to communicate with it
+        doBindService(intent);
     }
 
     @Override
@@ -183,10 +178,11 @@ public class Lobby extends AppCompatActivity{
         //TODO close any sockets and go back to MainMenu
     }
 
+    /* https://stackoverflow.com/a/18638588 */
     // gets the ip address of your phone's network
     private String getLocalIpAddress() {
-        WifiManager wifiMan = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        int ipAddressInt = wifiMan.getConnectionInfo().getIpAddress();
+        WifiManager manager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        int ipAddressInt = manager.getConnectionInfo().getIpAddress();
         if (ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN)) {
             ipAddressInt = Integer.reverseBytes(ipAddressInt);
         }
@@ -207,8 +203,11 @@ public class Lobby extends AppCompatActivity{
      * Used Android Developers References a lot for most of the Service stuff.
      * https://developer.android.com/reference/android/app/Service.html
      */
+    //the SocketService. Communicate with it by calling its methods
     private SocketService mBoundService;
     private boolean mIsBound = false;
+    //
+    private final Messenger mMessenger = new Messenger(new IncomingHandler(Lobby.this));
 
     private ServiceConnection mConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
@@ -219,9 +218,16 @@ public class Lobby extends AppCompatActivity{
             // cast its IBinder to a concrete class and directly access it.
             mBoundService = ((SocketService.LocalBinder)service).getService();
 
+            //I don't get the Messenger from the service because this runs on the same thread as it
+            //Because its on the same thread, I can use mBoundService and interact with it more easily
+            //But I do give the service a Messenger so it can interact with me
+            mBoundService.registerClient(mMessenger);
+
             // Tell the user about this for our demo.
-            Toast.makeText(Lobby.this, "socekt service connected",
+            Toast.makeText(Lobby.this, "socket service connected",
                     Toast.LENGTH_SHORT).show();
+
+
         }
 
         public void onServiceDisconnected(ComponentName className) {
@@ -235,19 +241,39 @@ public class Lobby extends AppCompatActivity{
         }
     };
 
-    void doBindService() {
+    private static class IncomingHandler extends Handler{
+        private final WeakReference<Lobby> mActivity;
+        IncomingHandler(Lobby activity){
+            mActivity = new WeakReference<>(activity);
+        }
+        @Override
+        public void handleMessage(Message msg) {
+            Lobby activity = mActivity.get();
+            if (activity != null) {
+                //TODO interact with Lobby through activity
+            }
+        }
+    }
+
+    //I chose to have this get an intent parameter so I may pass info to the service when creating it
+    void doBindService(Intent intent) {
+        Intent mIntent = null;
+        if(intent == null)
+            mIntent = new Intent(Lobby.this, SocketService.class);
+        else
+            mIntent = intent;
         // Establish a connection with the service.  We use an explicit
         // class name because we want a specific service implementation that
         // we know will be running in our own process (and thus won't be
         // supporting component replacement by other applications).
-        bindService(new Intent(Lobby.this,
-                SocketService.class), mConnection, Context.BIND_AUTO_CREATE);
+        bindService(mIntent, mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
     }
 
     void doUnbindService() {
         if (mIsBound) {
             // Detach our existing connection.
+            mBoundService.unregisterClient(mMessenger);
             unbindService(mConnection);
             mIsBound = false;
         }
