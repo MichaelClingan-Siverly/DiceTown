@@ -2,6 +2,7 @@ package mike.socketthreading;
 
 import android.os.AsyncTask;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -10,25 +11,25 @@ class AcceptConnections extends AsyncTask <Void, Socket, Void>{
     // designate a port
     //TODO let users change this if necessary (would have to display it on the host's UI and allow clients to enter it)
     public static final int SERVERPORT = 49255;
+    private String address;
 
     private ServerSocket serverSocket = null;
 
-    AcceptConnections(ReceivesNewConnections sendsNewConnectionsToThis){
+    AcceptConnections(ReceivesNewConnections sendsNewConnectionsToThis, String addressToUse){
         callback = sendsNewConnectionsToThis;
+        address = addressToUse;
     }
 
-    @Override
-    protected void onPreExecute(){
+    private void createSocket(){
         try {
-            //creates the socket and give the IP back to the service so it can be displayed
-            serverSocket = new ServerSocket(SERVERPORT);
-            callback.setHostIP(serverSocket.getInetAddress().getHostAddress());
+            InetAddress addressUsed = InetAddress.getByName(address);
+            serverSocket = new ServerSocket(SERVERPORT, 0, addressUsed);
+
             //I also set a timeout on the accept() so I can occasionally check to see if it should be cancelled
             serverSocket.setSoTimeout(2000); //2 seconds
         } catch (IOException e) {
             e.printStackTrace();
         }
-        callback.setHostIP(serverSocket.getInetAddress().getHostAddress());
     }
 
     @Override
@@ -38,7 +39,7 @@ class AcceptConnections extends AsyncTask <Void, Socket, Void>{
             try {
                 socket = serverSocket.accept();
             } catch (IOException e) {
-                //don't particularly care if it times out
+                //don't particularly care if it times out or if I close the
             }
             //I publish because I want this to keep going until the user decides to cancel it by starting the game
             if(socket != null)
@@ -49,7 +50,8 @@ class AcceptConnections extends AsyncTask <Void, Socket, Void>{
 
     @Override
     protected void onProgressUpdate(Socket... progress) {
-        callback.receiveConnection(progress[0]);
+        if(progress[0] != null)
+            callback.receiveConnection(progress[0]);
     }
 
     @Override

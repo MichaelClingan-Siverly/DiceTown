@@ -168,6 +168,8 @@ public class Lobby extends AppCompatActivity{
 
     private void startService(){
         Intent intent = new Intent(Lobby.this, SocketService.class);
+        intent.putExtra(SocketService.INTENT_HOST_BOOLEAN, host);
+        intent.putExtra(SocketService.INTENT_HOST_IP_STRING, hostIP);
         //TODO add enough to intent to show that user is host or not
         //binding starts the service, and I'd rather bind since I want to communicate with it
         doBindService(intent);
@@ -198,6 +200,8 @@ public class Lobby extends AppCompatActivity{
 
         return "error getting address";
     }
+
+
 
     /**
      * Used Android Developers References a lot for most of the Service stuff.
@@ -241,23 +245,9 @@ public class Lobby extends AppCompatActivity{
         }
     };
 
-    private static class IncomingHandler extends Handler{
-        private final WeakReference<Lobby> mActivity;
-        IncomingHandler(Lobby activity){
-            mActivity = new WeakReference<>(activity);
-        }
-        @Override
-        public void handleMessage(Message msg) {
-            Lobby activity = mActivity.get();
-            if (activity != null) {
-                //TODO interact with Lobby through activity
-            }
-        }
-    }
-
     //I chose to have this get an intent parameter so I may pass info to the service when creating it
     void doBindService(Intent intent) {
-        Intent mIntent = null;
+        Intent mIntent;
         if(intent == null)
             mIntent = new Intent(Lobby.this, SocketService.class);
         else
@@ -272,6 +262,7 @@ public class Lobby extends AppCompatActivity{
 
     void doUnbindService() {
         if (mIsBound) {
+            mBoundService.stopAcceptingConnections();
             // Detach our existing connection.
             mBoundService.unregisterClient(mMessenger);
             unbindService(mConnection);
@@ -283,5 +274,23 @@ public class Lobby extends AppCompatActivity{
     protected void onDestroy() {
         super.onDestroy();
         doUnbindService();
+    }
+
+    private static class IncomingHandler extends Handler{
+        private final WeakReference<Lobby> mActivity;
+        IncomingHandler(Lobby activity){
+            mActivity = new WeakReference<>(activity);
+        }
+        @Override
+        public void handleMessage(Message msg) {
+            Lobby activity = mActivity.get();
+            if (activity != null) {
+                switch(msg.what){
+                    default:
+                        super.handleMessage(msg);
+                }
+                //TODO interact with Lobby through activity
+            }
+        }
     }
 }

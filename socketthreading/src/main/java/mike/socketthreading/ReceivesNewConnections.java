@@ -11,5 +11,4 @@ import java.net.Socket;
 //TODO conside using the Handler from SocketService instead of callbacks
 interface ReceivesNewConnections {
     void receiveConnection(Socket s);
-    void setHostIP(String hostIP);
 }
