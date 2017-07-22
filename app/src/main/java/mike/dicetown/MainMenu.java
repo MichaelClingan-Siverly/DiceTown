@@ -117,11 +117,12 @@ public class MainMenu extends AppCompatActivity {
 
             try {
                 InetAddress iAddress = InetAddress.getByName(address);
-                results[REACHABLE] = iAddress.isReachable(500);
+                results[REACHABLE] = iAddress.isReachable(3000);
             }
             catch(UnknownHostException e) {
                 results[UNKNOWN_HOST] = true;
             } catch (IOException e) {
+                e.getLocalizedMessage();
                 results[NETWORK_ERROR] = true;
             }
             return results;

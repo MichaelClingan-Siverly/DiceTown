@@ -8,16 +8,18 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.util.Log;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 
 public class SocketService extends Service implements ReceivesNewConnections {
-    //TODO get rid of this ArrayList. It belongs in the GameClientConnections
-    private ArrayList<PlayerSocketContainer> socketConnections;
     private Messenger client;
     private AcceptConnections serverListenerTask = null;
-    //TODO create GameClientConnections and use it
+    private GameClientConnection connections = null;
+    //TODO I don't really care about stuff like this in the Service. Town names and all other player info belong in the Activities
+    private ArrayList<String> townNames = new ArrayList<>();
 
     // This is the object that receives interactions from clients.  See
     // RemoteService for a more complete example.
@@ -68,11 +70,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
         }
     }
 
-    @Override
-    public void onCreate() {
-        socketConnections = new ArrayList<>();
-    }
-
     /**
      * @param intent checked for INTENT_HOST_IP String extra. If it is not set or null,
      *               then a ServerSocket will be opened and listen for connections until
@@ -105,14 +102,8 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     public final static String INTENT_HOST_IP_STRING = "IP";
 
-    /**
-     * used when creating this Service. Required whether client or server.
-     * If the name is found to be already taken, a new name will be sent to the client's Messenger
-     * (see MSG_RENAME_TOWN)
-     */
-    public final static String INTENT_TOWN_NAME_STRING = "townName";
-
     private void checkIntent(Intent intent){
+        connections = new GameClientConnection(new Messenger(new IncomingHandler(SocketService.this)));
         String ip = intent.getStringExtra(INTENT_HOST_IP_STRING);
         //user is a host
         if(intent.getBooleanExtra(INTENT_HOST_BOOLEAN, false)) {
@@ -121,7 +112,8 @@ public class SocketService extends Service implements ReceivesNewConnections {
         }
         //user is a client
         else{
-            //TODO use the IP and connect to the host
+            townNames.add(intent.getStringExtra("name"));
+            new Thread(new CreateSocketTask(ip)).start();
         }
     }
 
@@ -132,24 +124,14 @@ public class SocketService extends Service implements ReceivesNewConnections {
     @Override
     public void receiveConnection(Socket s) {
         Log.d("receiveConn", "address: " + s.getInetAddress().getHostAddress());
-        //TODO add the socket to a set (whatever structure) of sockets
-        //TODO rename the town if necessary and inform the client if it has been done
-    }
-
-    private class PlayerSocketContainer{
-        String townName;
-        Socket socket;
-        PlayerSocketContainer(String townName, Socket s){
-            this.townName = townName;
-            socket = s;
-        }
+        connections.addSocket(s);
+        //TODO ask client for their town name (dont care about renaming) and give them names of other towns
     }
 
     /**
-     * Message to client that indicates the player's town name has been changed.
-     * The Message's what will be set to a String containing the name
+     * arg1 will be checked for index of what socket sent the message
      */
-    public final static int MSG_RENAME_TOWN = 0;
+    final static int MSG_INCOMING_DATA = 1;
 
     /**
      * Handler of incoming messages from clients.
@@ -164,9 +146,33 @@ public class SocketService extends Service implements ReceivesNewConnections {
         public void handleMessage(Message msg) {
             SocketService service = mService.get();
             if(service != null){
+                switch(msg.what){
+                    case MSG_INCOMING_DATA:
+                        Log.d("incoming", (String)msg.obj);
+                        break;
+                }
                 //TODO read message and interact with outer class through service
             }
         }
     }
 
+    private class CreateSocketTask implements Runnable{
+        String address;
+
+        CreateSocketTask(String address){
+            this.address = address;
+        }
+
+        @Override
+        public void run() {
+            try {
+                InetAddress inetAddr = InetAddress.getByName(address);
+                Socket s = new Socket(inetAddr, AcceptConnections.SERVERPORT);
+                connections.addSocket(s);
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 }

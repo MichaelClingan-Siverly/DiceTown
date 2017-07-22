@@ -10,7 +10,7 @@ class AcceptConnections extends AsyncTask <Void, Socket, Void>{
     private ReceivesNewConnections callback;
     // designate a port
     //TODO let users change this if necessary (would have to display it on the host's UI and allow clients to enter it)
-    public static final int SERVERPORT = 49255;
+    static final int SERVERPORT = 49255;
     private String address;
 
     private ServerSocket serverSocket = null;
@@ -20,7 +20,7 @@ class AcceptConnections extends AsyncTask <Void, Socket, Void>{
         address = addressToUse;
     }
 
-    private void createSocket(){
+    private void createServerSocket(){
         try {
             InetAddress addressUsed = InetAddress.getByName(address);
             serverSocket = new ServerSocket(SERVERPORT, 0, addressUsed);
@@ -34,6 +34,7 @@ class AcceptConnections extends AsyncTask <Void, Socket, Void>{
 
     @Override
     protected Void doInBackground(Void... params) {
+        createServerSocket();
         while(!isCancelled() && serverSocket != null && !serverSocket.isClosed()) {
             Socket socket = null;
             try {

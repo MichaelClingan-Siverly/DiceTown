@@ -172,6 +172,7 @@ public class Lobby extends AppCompatActivity{
         Intent intent = new Intent(Lobby.this, SocketService.class);
         intent.putExtra(SocketService.INTENT_HOST_BOOLEAN, host);
         intent.putExtra(SocketService.INTENT_HOST_IP_STRING, hostIP);
+        intent.putExtra("name", myTownName);
         //binding starts the service, and I'd rather bind since I want to communicate with it
         doBindService(intent);
     }
