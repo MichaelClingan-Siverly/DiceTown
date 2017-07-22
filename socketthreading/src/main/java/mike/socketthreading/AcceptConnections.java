@@ -50,7 +50,10 @@ class AcceptConnections extends AsyncTask <Void, Socket, Void>{
 
     @Override
     protected void onProgressUpdate(Socket... progress) {
-        if(progress[0] != null)
+        if(callback == null){
+            cancel(true);
+        }
+        else if(progress[0] != null && !isCancelled())
             callback.receiveConnection(progress[0]);
     }
 

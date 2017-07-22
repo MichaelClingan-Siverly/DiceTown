@@ -163,21 +163,22 @@ public class Lobby extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_lobby_layout);
         getExtras();
-        startService();
+        //don't bother starting the service if there is no host IP
+        if(!hostIP.equals("error getting address"))
+            startService();
     }
 
     private void startService(){
         Intent intent = new Intent(Lobby.this, SocketService.class);
         intent.putExtra(SocketService.INTENT_HOST_BOOLEAN, host);
         intent.putExtra(SocketService.INTENT_HOST_IP_STRING, hostIP);
-        //TODO add enough to intent to show that user is host or not
         //binding starts the service, and I'd rather bind since I want to communicate with it
         doBindService(intent);
     }
 
     @Override
     public void onBackPressed(){
-        //TODO close any sockets and go back to MainMenu
+        //TODO tell Service to close any sockets and then go back to MainMenu.
     }
 
     /* https://stackoverflow.com/a/18638588 */

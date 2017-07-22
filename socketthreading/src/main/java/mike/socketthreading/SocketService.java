@@ -2,23 +2,22 @@ package mike.socketthreading;
 
 import android.app.Service;
 import android.content.Intent;
-import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.os.RemoteException;
 import android.util.Log;
-
 import java.lang.ref.WeakReference;
 import java.net.Socket;
 import java.util.ArrayList;
 
 public class SocketService extends Service implements ReceivesNewConnections {
+    //TODO get rid of this ArrayList. It belongs in the GameClientConnections
     private ArrayList<PlayerSocketContainer> socketConnections;
     private Messenger client;
     private AcceptConnections serverListenerTask = null;
+    //TODO create GameClientConnections and use it
 
     // This is the object that receives interactions from clients.  See
     // RemoteService for a more complete example.
@@ -106,13 +105,19 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     public final static String INTENT_HOST_IP_STRING = "IP";
 
+    /**
+     * used when creating this Service. Required whether client or server.
+     * If the name is found to be already taken, a new name will be sent to the client's Messenger
+     * (see MSG_RENAME_TOWN)
+     */
+    public final static String INTENT_TOWN_NAME_STRING = "townName";
+
     private void checkIntent(Intent intent){
         String ip = intent.getStringExtra(INTENT_HOST_IP_STRING);
         //user is a host
         if(intent.getBooleanExtra(INTENT_HOST_BOOLEAN, false)) {
             serverListenerTask = new AcceptConnections(SocketService.this, ip);
             serverListenerTask.execute(null, null);
-            //TODO run acceptConnections and give the activity my IP
         }
         //user is a client
         else{
@@ -139,6 +144,12 @@ public class SocketService extends Service implements ReceivesNewConnections {
             socket = s;
         }
     }
+
+    /**
+     * Message to client that indicates the player's town name has been changed.
+     * The Message's what will be set to a String containing the name
+     */
+    public final static int MSG_RENAME_TOWN = 0;
 
     /**
      * Handler of incoming messages from clients.
