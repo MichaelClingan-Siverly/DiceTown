@@ -11,8 +11,9 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.support.v4.util.ArrayMap;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -25,6 +26,7 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 
 import mike.socketthreading.SocketService;
 
@@ -41,10 +43,11 @@ public class Lobby extends AppCompatActivity{
     /** One of the extras that are checked when creating this activity. name of the town*/
     public final static String stringExtraKeyName = "townName";
     private String myTownName;
+    private int myPlayerOrder;
 
     private boolean host;
     private String hostIP = null;
-    private ArrayMap<String, PlayerReadyContainer> allPlayers;
+    private SparseArray<PlayerReadyContainer> allPlayers;
 
     private void getExtras(){
         Intent intent = getIntent();
@@ -59,25 +62,31 @@ public class Lobby extends AppCompatActivity{
                 displayHostIP();
         }
 
-        allPlayers = new ArrayMap<>();
-        addPlayerToList(myTownName);
+        myPlayerOrder = 0;
+        allPlayers = new SparseArray<>();
+        addPlayerToList(myTownName, myPlayerOrder);
     }
 
     public void lobbyButtonListener(View v){
         if(host){
             if(checkIfAllReady()) {
-                //TODO do whatever is needed to start game
+                mBoundService.sendData(BEGIN_GAME, -1, -1);
+                //TODO unbind service
             }
         }
         else{
-            changeReadiness(myTownName);
-            //TODO send ready/unready status to host
+            //if I'm not a host any my order is 0, it means the host hasn't given me an order yet
+            //First thing they do when conencted is give me an order, so it means we're not connected yet
+            if(myPlayerOrder != 0) {
+                changeReadiness(myPlayerOrder);
+                mBoundService.sendData(SocketService.CHANGE_READINESS + ':' + myPlayerOrder, 0, -1);
+            }
         }
     }
 
-    private void changeReadiness(String townName){
-        if(allPlayers.containsKey(townName)){
-            PlayerReadyContainer container = allPlayers.get(townName);
+    private void changeReadiness(int playerOrder){
+        if(allPlayers.get(playerOrder) != null){
+            PlayerReadyContainer container = allPlayers.get(playerOrder);
             container.ready = !container.ready;
             if(container.ready) {
                 container.readyIcon.setImageResource(R.drawable.checkmark);
@@ -88,7 +97,7 @@ public class Lobby extends AppCompatActivity{
                 if(checkIfAllReady() && host)
                     b.setText(R.string.lobbyStartGame);
                 //only change a player's button's function if they're the one who changed readiness
-                else if(townName.equals(myTownName) && !host)
+                else if(playerOrder == myPlayerOrder && !host)
                     b.setText(R.string.lobbyUnReady);
             }
             else {
@@ -97,7 +106,7 @@ public class Lobby extends AppCompatActivity{
                 if(!checkIfAllReady() && host)
                     b.setText("");
                 //only change a player's button's function if they're the one who changed readiness
-                else if(townName.equals(myTownName) && !host)
+                else if(playerOrder == myPlayerOrder && !host)
                     b.setText(R.string.lobbyReady);
             }
         }
@@ -113,8 +122,8 @@ public class Lobby extends AppCompatActivity{
         return allPlayers.size() > 1;
     }
 
-    private void addPlayerToList(String townName){
-        allPlayers.put(townName, new PlayerReadyContainer());
+    private void addPlayerToList(String townName, int playerOrder){
+        allPlayers.put(playerOrder, new PlayerReadyContainer(townName));
         //The left column is for the player's town name
         TextView name = new TextView(getApplicationContext());
         name.setText(townName);
@@ -126,7 +135,7 @@ public class Lobby extends AppCompatActivity{
         layout.addView(name);
 
         //the right column is for the player's ready status
-        ImageView image = allPlayers.get(townName).readyIcon;
+        ImageView image = allPlayers.get(playerOrder).readyIcon;
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(desiredIconSize, desiredIconSize);
         image.setLayoutParams(params);
         layout = (LinearLayout)findViewById(R.id.lobbyIconLayout);
@@ -134,14 +143,20 @@ public class Lobby extends AppCompatActivity{
 
         //the host is always ready
         if(host && townName.equals(myTownName)){
-            changeReadiness(myTownName);
+            changeReadiness(playerOrder);
+        }
+        if(!host && playerOrder == 0){
+            changeReadiness(0);
+            changeReadiness(0);
         }
     }
 
     private class PlayerReadyContainer{
         boolean ready;
         ImageView readyIcon;
-        PlayerReadyContainer(){
+        String townName;
+        PlayerReadyContainer(String townName){
+            this.townName = townName;
             ready = false;
             readyIcon = new ImageView(Lobby.this);
             readyIcon.setImageResource(R.drawable.unready);
@@ -172,7 +187,6 @@ public class Lobby extends AppCompatActivity{
         Intent intent = new Intent(Lobby.this, SocketService.class);
         intent.putExtra(SocketService.INTENT_HOST_BOOLEAN, host);
         intent.putExtra(SocketService.INTENT_HOST_IP_STRING, hostIP);
-        intent.putExtra("name", myTownName);
         //binding starts the service, and I'd rather bind since I want to communicate with it
         doBindService(intent);
     }
@@ -288,11 +302,115 @@ public class Lobby extends AppCompatActivity{
             Lobby activity = mActivity.get();
             if (activity != null) {
                 switch(msg.what){
+                    case SocketService.MSG_INCOMING_DATA:
+                        activity.handleIncomingData(msg.arg1, (String)msg.obj);
+                        break;
                     default:
                         super.handleMessage(msg);
                 }
-                //TODO interact with Lobby through activity
             }
+        }
+    }
+
+    private final String BEGIN_GAME = "BG";
+
+    //I use the playerOrder who sent it in case I must reply to that specific user (or all users but that one)
+    private void handleIncomingData(int playerOrderWhoSentThis, String dataString){
+        ArrayList<DataMapping> list = parseIncomingData(dataString);
+        for(DataMapping mapping : list){
+            //host telling players what their player order is. Reply with the name of this user's town
+            if(mapping.keyWord.contains(SocketService.PLAYER_ORDER)){
+                if(!host) {
+                    //change my playerOrder
+                    PlayerReadyContainer cont = allPlayers.get(myPlayerOrder);
+                    allPlayers.remove(myPlayerOrder);
+                    myPlayerOrder = Integer.parseInt(mapping.value);
+                    allPlayers.put(myPlayerOrder, cont);
+                    //the keyword includes my player order
+                    mBoundService.sendData(SocketService.PLAYER_NAME+myPlayerOrder+':'+myTownName, 0,-1);
+                    if(allPlayers.get(myPlayerOrder).ready)
+                        mBoundService.sendData(SocketService.CHANGE_READINESS+':'+myPlayerOrder, 0, -1);
+                }
+            }
+            //players telling you what their name is
+            else if(mapping.keyWord.contains(SocketService.PLAYER_NAME)){
+                int order = extractInt(mapping.keyWord);
+                String name = mapping.value;
+                addPlayerToList(name, order);
+                if(host){
+                    //send the new name to all existing players
+                    mBoundService.sendData(SocketService.PLAYER_NAME+order+':'+name, -1, order);
+                    //send existing player names to the new player
+                    for(int i = 0; i < order; i++){
+                        int otherPlayerOrder = allPlayers.keyAt(i);
+                        mBoundService.sendData(SocketService.PLAYER_NAME+otherPlayerOrder+':'+allPlayers.valueAt(i).townName, order, -1);
+                    }
+                }
+                //all players know the host (with key 0) is ready, so they change host's readiness automatically
+                else if(!allPlayers.get(0).ready){
+                    changeReadiness(0);
+                }
+            }
+            else if(mapping.keyWord.contains(SocketService.CHANGE_READINESS)){
+                int order = extractInt(mapping.value);
+                changeReadiness(order);
+                //If I'm the host, tell all other players that this player is (un)ready
+                if(host){
+                    mBoundService.sendData(SocketService.CHANGE_READINESS+':'+order,-1, order);
+                }
+            }
+        }
+        //TODO Well...parse and handle incoming data...
+    }
+
+    private ArrayList<DataMapping> parseIncomingData(String dataString){
+        ArrayList<DataMapping> list = new ArrayList<>();
+        int i = 0;
+        int j = i; //keeps track of the old index
+        String a = null;
+        String b = null;
+        while((i = dataString.indexOf(':', i)) != -1){
+            if(a != null){
+                b = dataString.substring(j, i);
+                list.add(new DataMapping(a, b));
+                a = null;
+            }
+            else{
+                a = dataString.substring(j, i);
+            }
+            i++;
+            j = i;
+        }
+        if(a != null && b == null){
+            b = dataString.substring(j);
+            list.add(new DataMapping(a,b));
+        }
+        return list;
+    }
+
+    //returns the first int value found in the string, and Integer.MIN_VALUE if no int can be found
+    private int extractInt(String str){
+        String s = "";
+        for(int i = 0; i < str.length(); i++){
+            if(str.charAt(i) >= '0' && str.charAt(i) <= '9'){
+                s+=str.charAt(i);
+            }
+            else if(!s.equals(""))
+                break;
+        }
+        if(s.equals("")) {
+            Log.d("extractInt", "no integer found to parse");
+            return Integer.MIN_VALUE;
+        }
+        return Integer.parseInt(s);
+    }
+
+    private class DataMapping{
+        String keyWord;
+        String value;
+        DataMapping(String keyword, String value){
+            this.keyWord = keyword;
+            this.value = value;
         }
     }
 }

@@ -5,6 +5,7 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.util.Log;
 import android.util.SparseArray;
 
 import java.io.BufferedReader;
@@ -27,11 +28,15 @@ class GameClientConnection {
     //Handler for this class. Left it a Handler so I can post Runnables in addition to receiving Messages
     private Handler mHandler;
     private SparseArray<Socket> sockets;
-    private int nextSocketIndex = 0;
+    private int nextSocketKey;
     //used as a synchronization lock for accesses to the SparseArray itself
     private final Object lock = new Object();
 
-    GameClientConnection(Messenger sendStuffTo){
+    GameClientConnection(Messenger sendStuffTo, boolean host){
+        if(host)
+            nextSocketKey = 1;
+        else
+            nextSocketKey = 0;
         myThread = new HandlerThread("myClientThread");
         myThread.start();
         sendToMessenger = sendStuffTo;
@@ -46,10 +51,10 @@ class GameClientConnection {
 
     int addSocket(Socket s){
         synchronized (lock) {
-            sockets.put(nextSocketIndex, s);
+            sockets.put(nextSocketKey, s);
         }
-        int i = nextSocketIndex;
-        nextSocketIndex++;
+        int i = nextSocketKey;
+        nextSocketKey++;
         readData(i);
         return i;
     }
@@ -57,14 +62,14 @@ class GameClientConnection {
     /**
      *
      * @param dataToBeSent a String to be sent across the sockets
-     * @param indexToSendTo If set to an index of a socket, data will only be sent to that socket
+     * @param keyToSendTo If set to an index of a socket, data will only be sent to that socket
      *                      otherwise, data will be sent to all sockets
-     * @param indexToSkip if set to an index of a socket, data will be sent to all sockets but that one
+     * @param keyToSkip if set to an index of a socket, data will be sent to all sockets but that one
      */
-    void sendData(String dataToBeSent, int indexToSendTo, int indexToSkip){
+    void sendData(String dataToBeSent, int keyToSendTo, int keyToSkip){
         Socket s;
         synchronized (lock){
-            s = sockets.get(indexToSendTo);
+            s = sockets.get(keyToSendTo);
         }
         if(s != null){
             sendDataHelper(dataToBeSent, s);
@@ -75,27 +80,37 @@ class GameClientConnection {
                 length = sockets.size();
             }
             for(int i = 0; i < length; i++){
+                int thisKey;
                 synchronized (lock){
-                    if(sockets.keyAt(i) != indexToSkip)
-                        continue;
-                    s = sockets.valueAt(i);
+                    thisKey = sockets.keyAt(i);
+                    s = sockets.get(i);
                 }
-                sendDataHelper(dataToBeSent, s);
+                if(thisKey != keyToSkip)
+                    sendDataHelper(dataToBeSent, s);
             }
         }
     }
 
-    private void sendDataHelper(String dataToBeSent, Socket s){
-        try {
-            synchronized (s.getOutputStream()) {
-                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
-                writer.write(dataToBeSent, 0, dataToBeSent.length());
-                writer.newLine();
-                writer.flush();
+    private void sendDataHelper(final String dataToBeSent, final Socket s){
+        mHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if(android.os.Debug.isDebuggerConnected())
+                    android.os.Debug.waitForDebugger();
+                try {
+                    synchronized (s.getOutputStream()) {
+                        Log.d("writeData", "sending to "+s.getInetAddress().getHostAddress());
+                        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+                        writer.write(dataToBeSent, 0, dataToBeSent.length());
+                        writer.newLine();
+                        writer.flush();
+                    }
+                } catch (IOException e){
+                    e.printStackTrace();
+                }
             }
-        } catch (IOException e){
-            e.printStackTrace();
-        }
+        });
+
     }
 
     /**
@@ -103,7 +118,6 @@ class GameClientConnection {
      * after the Runnable finishes it posts itself again so that the socket will
      * be listened to again once all other messages have been handled
      */
-
     private void readData(final int index){
         mHandler.post(new Runnable() {
             @Override
@@ -114,8 +128,11 @@ class GameClientConnection {
                 }
                 if(s != null) {
                     try {
+                        if(android.os.Debug.isDebuggerConnected())
+                            android.os.Debug.waitForDebugger();
                         synchronized(s.getInputStream()) {
                             while (s.getInputStream().available() > 0) {
+                                Log.d("readData", "reading from index "+index);
                                 BufferedReader reader = new BufferedReader(new InputStreamReader(s.getInputStream()));
                                 String line = reader.readLine();
                                 mHandler.sendMessage(Message.obtain(null, SocketService.MSG_INCOMING_DATA, index, -1, line));
@@ -145,7 +162,8 @@ class GameClientConnection {
                 switch(msg.what){
                     case SocketService.MSG_INCOMING_DATA:
                         try {
-                            outer.sendToMessenger.send(msg);
+                            Message message = Message.obtain(msg);
+                            outer.sendToMessenger.send(message);
                         } catch (RemoteException e) {
                             e.printStackTrace();
                         }

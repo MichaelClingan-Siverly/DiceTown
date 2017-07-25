@@ -7,6 +7,7 @@ import android.os.AsyncTask;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
@@ -45,6 +46,7 @@ public class MainMenu extends AppCompatActivity {
             ipAlert.setTitle("Join Game");
             ipAlert.setMessage("Please enter host's IP address");
             ipEdit = new EditText(this);
+            ipEdit.setInputType(InputType.TYPE_CLASS_PHONE);
             ipAlert.setView(ipEdit);
             //make sure a userName is entered. If so, attempt to connect to the host
             ipAlert.setPositiveButton("Join", dialogListener);

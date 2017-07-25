@@ -7,19 +7,17 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.os.RemoteException;
 import android.util.Log;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.util.ArrayList;
 
 public class SocketService extends Service implements ReceivesNewConnections {
     private Messenger client;
     private AcceptConnections serverListenerTask = null;
     private GameClientConnection connections = null;
-    //TODO I don't really care about stuff like this in the Service. Town names and all other player info belong in the Activities
-    private ArrayList<String> townNames = new ArrayList<>();
 
     // This is the object that receives interactions from clients.  See
     // RemoteService for a more complete example.
@@ -71,6 +69,31 @@ public class SocketService extends Service implements ReceivesNewConnections {
     }
 
     /**
+     * key for data indicating what playerOrder a player is assigned
+     */
+    public static final String PLAYER_ORDER = "PO";
+    /**
+     * key for data indicating the player's name. The key should be appended by the player order
+     */
+    public static final String PLAYER_NAME = "PN";
+    /**
+     * key for data indicating that readiness should be changed
+     */
+    public static final String CHANGE_READINESS = "CR";
+
+    /**
+     * Sends the given data to the correct receiving Sockets
+     * @param data a String representing the data to be sent across the sockets.
+     *             Strings should be formatted as key:value
+     * @param indexToSendTo If set to an index of a socket, data will only be sent to that socket
+     *                      otherwise, data will be sent to all sockets
+     * @param indexToSkip if set to an index of a socket, data will be sent to all sockets but that one
+     */
+    public void sendData(String data, int indexToSendTo, int indexToSkip){
+        connections.sendData(data, indexToSendTo, indexToSkip);
+    }
+
+    /**
      * @param intent checked for INTENT_HOST_IP String extra. If it is not set or null,
      *               then a ServerSocket will be opened and listen for connections until
      *               sTopAcceptingConnections() is called
@@ -103,16 +126,16 @@ public class SocketService extends Service implements ReceivesNewConnections {
     public final static String INTENT_HOST_IP_STRING = "IP";
 
     private void checkIntent(Intent intent){
-        connections = new GameClientConnection(new Messenger(new IncomingHandler(SocketService.this)));
+        boolean host = intent.getBooleanExtra(INTENT_HOST_BOOLEAN, false);
+        connections = new GameClientConnection(new Messenger(new IncomingHandler(SocketService.this)), host);
         String ip = intent.getStringExtra(INTENT_HOST_IP_STRING);
-        //user is a host
-        if(intent.getBooleanExtra(INTENT_HOST_BOOLEAN, false)) {
+        //if host, begin listening for connections
+        if(host) {
             serverListenerTask = new AcceptConnections(SocketService.this, ip);
             serverListenerTask.execute(null, null);
         }
-        //user is a client
+        //if client, immediately connect to host
         else{
-            townNames.add(intent.getStringExtra("name"));
             new Thread(new CreateSocketTask(ip)).start();
         }
     }
@@ -124,14 +147,14 @@ public class SocketService extends Service implements ReceivesNewConnections {
     @Override
     public void receiveConnection(Socket s) {
         Log.d("receiveConn", "address: " + s.getInetAddress().getHostAddress());
-        connections.addSocket(s);
-        //TODO ask client for their town name (dont care about renaming) and give them names of other towns
-    }
+        int playerOrder = connections.addSocket(s);
+        sendData(PLAYER_ORDER+':'+playerOrder, playerOrder, -1); //host is playerOrder zero
+        }
 
     /**
      * arg1 will be checked for index of what socket sent the message
      */
-    final static int MSG_INCOMING_DATA = 1;
+    public final static int MSG_INCOMING_DATA = 1;
 
     /**
      * Handler of incoming messages from clients.
@@ -148,6 +171,13 @@ public class SocketService extends Service implements ReceivesNewConnections {
             if(service != null){
                 switch(msg.what){
                     case MSG_INCOMING_DATA:
+                        try {
+                            Message message = Message.obtain(msg);
+                            service.client.send(message);
+                        } catch (RemoteException e) {
+                            Log.d("remoteException", e.getLocalizedMessage());
+                            e.printStackTrace();
+                        }
                         Log.d("incoming", (String)msg.obj);
                         break;
                 }
@@ -156,6 +186,7 @@ public class SocketService extends Service implements ReceivesNewConnections {
         }
     }
 
+    //Because Sockets can't be made on the main thread
     private class CreateSocketTask implements Runnable{
         String address;
 
@@ -166,9 +197,12 @@ public class SocketService extends Service implements ReceivesNewConnections {
         @Override
         public void run() {
             try {
+                if(android.os.Debug.isDebuggerConnected())
+                    android.os.Debug.waitForDebugger();
                 InetAddress inetAddr = InetAddress.getByName(address);
                 Socket s = new Socket(inetAddr, AcceptConnections.SERVERPORT);
                 connections.addSocket(s);
+
             }
             catch (IOException e) {
                 e.printStackTrace();
