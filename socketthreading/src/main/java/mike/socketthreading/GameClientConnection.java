@@ -83,7 +83,7 @@ class GameClientConnection {
                 int thisKey;
                 synchronized (lock){
                     thisKey = sockets.keyAt(i);
-                    s = sockets.get(i);
+                    s = sockets.get(thisKey);
                 }
                 if(thisKey != keyToSkip)
                     sendDataHelper(dataToBeSent, s);

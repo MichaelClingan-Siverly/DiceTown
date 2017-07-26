@@ -28,7 +28,9 @@
         <service
             android:name="mike.socketthreading.SocketService"
             android:enabled="true"
-            android:exported="false"/>
+            android:exported="false" />
+
+        <activity android:name=".InGame"></activity>
     </application>
 
 </manifest>

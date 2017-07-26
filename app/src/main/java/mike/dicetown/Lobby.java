@@ -70,8 +70,8 @@ public class Lobby extends AppCompatActivity{
     public void lobbyButtonListener(View v){
         if(host){
             if(checkIfAllReady()) {
-                mBoundService.sendData(BEGIN_GAME, -1, -1);
-                //TODO unbind service
+                mBoundService.sendData(BEGIN_GAME+':'+0, -1, -1); //the value doesn't matter here
+                goToGame();
             }
         }
         else{
@@ -82,6 +82,17 @@ public class Lobby extends AppCompatActivity{
                 mBoundService.sendData(SocketService.CHANGE_READINESS + ':' + myPlayerOrder, 0, -1);
             }
         }
+    }
+
+    private void goToGame(){
+        doUnbindService();
+        Intent intent = new Intent(Lobby.this, InGame.class);
+        intent.putExtra("myName", myTownName);
+        for(int i = 0; i > allPlayers.size(); i++){
+            intent.putExtra("p"+i, allPlayers.get(i).townName);
+        }
+        startActivity(intent);
+        finish();
     }
 
     private void changeReadiness(int playerOrder){
@@ -126,6 +137,7 @@ public class Lobby extends AppCompatActivity{
         allPlayers.put(playerOrder, new PlayerReadyContainer(townName));
         //The left column is for the player's town name
         TextView name = new TextView(getApplicationContext());
+        name.setTextSize(20);
         name.setText(townName);
         name.setTextColor(Color.BLACK);
         //I store the text height because I want the icons to be as tall (and wide) as the corresponding text
@@ -226,7 +238,7 @@ public class Lobby extends AppCompatActivity{
     //the SocketService. Communicate with it by calling its methods
     private SocketService mBoundService;
     private boolean mIsBound = false;
-    //
+
     private final Messenger mMessenger = new Messenger(new IncomingHandler(Lobby.this));
 
     private ServiceConnection mConnection = new ServiceConnection() {
@@ -334,16 +346,16 @@ public class Lobby extends AppCompatActivity{
             }
             //players telling you what their name is
             else if(mapping.keyWord.contains(SocketService.PLAYER_NAME)){
-                int order = extractInt(mapping.keyWord);
+//                int order = extractInt(mapping.keyWord);
                 String name = mapping.value;
-                addPlayerToList(name, order);
+                addPlayerToList(name, playerOrderWhoSentThis);
                 if(host){
                     //send the new name to all existing players
-                    mBoundService.sendData(SocketService.PLAYER_NAME+order+':'+name, -1, order);
+                    mBoundService.sendData(SocketService.PLAYER_NAME+':'+name, -1, playerOrderWhoSentThis);
                     //send existing player names to the new player
-                    for(int i = 0; i < order; i++){
+                    for(int i = 0; i < playerOrderWhoSentThis; i++){
                         int otherPlayerOrder = allPlayers.keyAt(i);
-                        mBoundService.sendData(SocketService.PLAYER_NAME+otherPlayerOrder+':'+allPlayers.valueAt(i).townName, order, -1);
+                        mBoundService.sendData(SocketService.PLAYER_NAME+otherPlayerOrder+':'+allPlayers.valueAt(i).townName, playerOrderWhoSentThis, -1);
                     }
                 }
                 //all players know the host (with key 0) is ready, so they change host's readiness automatically
@@ -352,12 +364,15 @@ public class Lobby extends AppCompatActivity{
                 }
             }
             else if(mapping.keyWord.contains(SocketService.CHANGE_READINESS)){
-                int order = extractInt(mapping.value);
-                changeReadiness(order);
+//                int order = extractInt(mapping.value);
+                changeReadiness(playerOrderWhoSentThis);
                 //If I'm the host, tell all other players that this player is (un)ready
                 if(host){
-                    mBoundService.sendData(SocketService.CHANGE_READINESS+':'+order,-1, order);
+                    mBoundService.sendData(SocketService.CHANGE_READINESS,-1, playerOrderWhoSentThis);
                 }
+            }
+            else if(mapping.keyWord.equals(BEGIN_GAME)){
+                goToGame();
             }
         }
         //TODO Well...parse and handle incoming data...

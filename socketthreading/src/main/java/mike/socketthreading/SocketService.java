@@ -18,6 +18,7 @@ public class SocketService extends Service implements ReceivesNewConnections {
     private Messenger client;
     private AcceptConnections serverListenerTask = null;
     private GameClientConnection connections = null;
+    private boolean previouslyBound = false;
 
     // This is the object that receives interactions from clients.  See
     // RemoteService for a more complete example.
@@ -100,7 +101,8 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        checkIntent(intent);
+        if(!previouslyBound)
+            checkIntent(intent);
         Log.i("LocalService", "Received start id " + startId + ": " + intent);
         return START_REDELIVER_INTENT;
     }
@@ -112,7 +114,10 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     @Override
     public IBinder onBind(Intent intent) {
-        checkIntent(intent);
+        if(!previouslyBound) {
+            previouslyBound = true;
+            checkIntent(intent);
+        }
         return mBinder;
     }
 
