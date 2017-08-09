@@ -6,4 +6,16 @@
     <string name="lobbyReady">Ready</string>
     <string name="lobbyUnReady">Not Ready</string>
     <string name="lobbyStartGame">Start Game</string>
+    <string name="coinAmountString">x%1$i</string>
+    <string name="toMarketplace">Marketplace</string>
+    <string name="backToOwnCity">Return to my city</string>
+    <string name="prevTown">prev</string>
+    <string name="nextTown">next</string>
+    <string name="oneDice">one</string>
+    <string name="twoDice">two</string>
+    <string name="cancelDice">Cancel</string>
+    <string name="rollDice">roll dice</string>
+    <string name="accept">accept</string>
+    <string name="backToPick">back to pick</string>
+    <string name="viewCities">view cities</string>
 </resources>

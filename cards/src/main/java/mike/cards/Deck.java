@@ -1,0 +1,190 @@
+package mike.cards;
+
+import android.support.v4.util.ArraySet;
+
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.Random;
+
+/**
+ * Created by mike on 8/2/2017.
+ */
+
+public class Deck {
+    public static final int NUM_ESTABLISHMENTS = 38;
+    private LinkedList<Establishment> deck;
+
+//    public static final ArraySet<String> primaryIndustryCodes = new ArraySet<>(Arrays.asList("MB", "TB"));
+//    public static final ArraySet<String> secondaryIndustryCodes = new ArraySet<>(Arrays.asList("CF", "FF", "PM", "FW", "DC", "LO", "W", "MC", "BP"));
+//    public static final ArraySet<String> cropCodes = new ArraySet<>(Arrays.asList("CO", "AO", "FO", "WF", "V"));
+//    public static final ArraySet<String> livestockCodes = new ArraySet<>();
+//    public static final ArraySet<String> majorEstablishmentCodes = new ArraySet<>(Arrays.asList("S", "TV", "BC", "PB", "TO", "RC", "TS", "P"));
+//    public static final ArraySet<String> naturalResourceCodes = new ArraySet<>(Arrays.asList("M", "F"));
+//    public static final ArraySet<String> shopCodes = new ArraySet<>(Arrays.asList("B", "CS", "FS", "GS"));
+//    public static final ArraySet<String> restaurantCodes = new ArraySet<>(Arrays.asList("FA", "C", "SB", "PJ", "BS", "FR", "EC"));
+
+    public Deck(int numPlayers){
+//        livestockCodes.add("R");
+//        primaryIndustryCodes.addAll(livestockCodes);
+//        primaryIndustryCodes.addAll(cropCodes);
+//        primaryIndustryCodes.addAll(naturalResourceCodes);
+//        secondaryIndustryCodes.addAll(shopCodes);
+        deck = new LinkedList<>();
+        Establishment[] establishments = new Establishment[]{new AppleOrchard(), new Bakery(),
+                new BottlingPlant(), new BurgerStand(), new BusinessCenter(), new Cafe(),
+                new CheeseFactory(), new ConvenienceStore(), new ConventionCenter(), new CornField(),
+                new DemoCompany(), new ExclusiveClub(), new FamilyRestaurant(),
+                new FlowerOrchard(), new FlowerShop(), new FoodWarehouse(), new Forest(),
+                new FrenchRestaurant(), new FurnitureFactory(), new GeneralStore(),
+                new LoanOffice(), new MackerelBoat(), new Mine(), new MovingCompany(), new Park(),
+                new PizzaJoint(), new ProduceMarket(), new Publisher(), new Ranch(),
+                new RenoCompany(), new Stadium(), new SushiBar(), new TaxOffice(), new TechStartup(),
+                new TunaBoat(), new TvStation(), new Vineyard(), new WheatField(), new Winery()};
+        addCopiesToPool(establishments, numPlayers);
+
+        Random rand = new Random();
+        int poolLength = establishments.length;
+        while(poolLength > 0){
+            int poolIndex = rand.nextInt(poolLength);
+            try {
+                Establishment newCard = establishments[poolIndex].getClass().newInstance();
+                establishments[poolIndex].removeCopy();
+                if(establishments[poolIndex].getNumCopies() == 0)
+                    removeFromPool(establishments, poolIndex);
+                deck.push(newCard);
+            } catch (InstantiationException | IllegalAccessException e) {
+                //all the cards have no parametrized constructors, so instantiation is good
+                //all the cards are public, so illegalAccess is good too
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void addCopiesToPool(Establishment[] establishments, int numPlayers){
+        for(Establishment c : establishments){
+            //major establishments get one copy for each player
+            if(c instanceof MajorEstablishment){
+                for(int i = 0; i < numPlayers; i++){
+                    c.addCopy();
+                }
+            }
+            //other establishments get 6 copies each regardless of amount of players
+            else{
+                for(int i = 0; i < 6; i++){
+                    c.addCopy();
+                }
+            }
+        }
+    }
+
+    private int removeFromPool(Establishment[] establishments, int indexToRemove){
+        if(indexToRemove == establishments.length-1)
+            return indexToRemove - 1;
+        else
+            establishments[indexToRemove] = establishments[establishments.length-1];
+        return establishments.length-2;
+    }
+
+    public Establishment draw(){
+        if(deck.size() > 0)
+            return deck.pop();
+        else return null;
+    }
+
+    public static Card getCardFromCode(String cardCode){
+        switch(cardCode){
+            case "A":
+                return new Airport();
+            case "AP":
+                return new AmusementPark();
+            case "AO":
+                return new AppleOrchard();
+            case "B":
+                return new Bakery();
+            case "BP":
+                return new BottlingPlant();
+            case "BS":
+                return new BurgerStand();
+            case "BC":
+                return new BusinessCenter();
+            case "C":
+                return new Cafe();
+            case "CF":
+                return new CheeseFactory();
+            case "CH":
+                return new CityHall();
+            case "CS":
+                return new ConvenienceStore();
+            case "CC":
+                return new ConventionCenter();
+            case "CO": //cornfield
+                return new CornField();
+            case "DC":
+                return new DemoCompany();
+            case "EC":
+                return new ExclusiveClub();
+            case "FA": //familyRestaurant
+                return new FamilyRestaurant();
+            case "FO":
+                return new FlowerOrchard();
+            case "FS":
+                return new FlowerShop();
+            case "FW":
+                return new FoodWarehouse();
+            case "F":
+                return new Forest();
+            case "FR":
+                return new FrenchRestaurant();
+            case "FF":
+                return new FurnitureFactory();
+            case "GS":
+                return new GeneralStore();
+            case "H":
+                return new Harbor();
+            case "LO":
+                return new LoanOffice();
+            case "MB":
+                return new MackerelBoat();
+            case "M":
+                return new Mine();
+            case "MC":
+                return new MovingCompany();
+            case "P":
+                return new Park();
+            case "PJ":
+                return new PizzaJoint();
+            case "PM":
+                return new ProduceMarket();
+            case "PB": //publisher
+                return new Publisher();
+            case "RT":
+                return new RadioTower();
+            case "R":
+                return new Ranch();
+            case "RC":
+                return new RenoCompany();
+            case "SM":
+                return new ShoppingMall();
+            case "S":
+                return new Stadium();
+            case "SB":
+                return new SushiBar();
+            case "TO":
+                return new TaxOffice();
+            case "TS":
+                return new TechStartup();
+            case "TR": //trainStation
+                return new TrainStation();
+            case "TB":
+                return new TunaBoat();
+            case "TV":
+                return new TvStation();
+            case "V":
+                return new Vineyard();
+            case "WF":
+                return new WheatField();
+            default:
+                return new Winery();
+        }
+    }
+}

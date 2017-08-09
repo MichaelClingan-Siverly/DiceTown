@@ -18,7 +18,7 @@ public class SocketService extends Service implements ReceivesNewConnections {
     private Messenger client;
     private AcceptConnections serverListenerTask = null;
     private GameClientConnection connections = null;
-    private boolean previouslyBound = false;
+    private boolean previouslyStarted = false;
 
     // This is the object that receives interactions from clients.  See
     // RemoteService for a more complete example.
@@ -81,6 +81,10 @@ public class SocketService extends Service implements ReceivesNewConnections {
      * key for data indicating that readiness should be changed
      */
     public static final String CHANGE_READINESS = "CR";
+    /**
+     * key for data indicating that the socket is being closed
+     */
+    public static final String CLOSED_SOCKET = "CS";
 
     /**
      * Sends the given data to the correct receiving Sockets
@@ -101,8 +105,10 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if(!previouslyBound)
+        if(!previouslyStarted) {
+            previouslyStarted = true;
             checkIntent(intent);
+        }
         Log.i("LocalService", "Received start id " + startId + ": " + intent);
         return START_REDELIVER_INTENT;
     }
@@ -114,10 +120,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     @Override
     public IBinder onBind(Intent intent) {
-        if(!previouslyBound) {
-            previouslyBound = true;
-            checkIntent(intent);
-        }
         return mBinder;
     }
 
@@ -186,7 +188,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
                         Log.d("incoming", (String)msg.obj);
                         break;
                 }
-                //TODO read message and interact with outer class through service
             }
         }
     }

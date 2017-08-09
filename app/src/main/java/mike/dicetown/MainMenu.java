@@ -32,7 +32,7 @@ public class MainMenu extends AppCompatActivity {
     public void joinListener(View v){
         getTownName();
 
-        if(townNameEntered()) {
+        if(townNameEntered() && !townName.equals("market")) {
             AlertDialog.OnClickListener dialogListener = new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface dialog, int which) {

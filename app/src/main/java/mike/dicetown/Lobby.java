@@ -46,6 +46,7 @@ public class Lobby extends AppCompatActivity{
     private int myPlayerOrder;
 
     private boolean host;
+    private boolean moveToGame = false;
     private String hostIP = null;
     private SparseArray<PlayerReadyContainer> allPlayers;
 
@@ -61,7 +62,6 @@ public class Lobby extends AppCompatActivity{
             else
                 displayHostIP();
         }
-
         myPlayerOrder = 0;
         allPlayers = new SparseArray<>();
         addPlayerToList(myTownName, myPlayerOrder);
@@ -70,7 +70,6 @@ public class Lobby extends AppCompatActivity{
     public void lobbyButtonListener(View v){
         if(host){
             if(checkIfAllReady()) {
-                mBoundService.sendData(BEGIN_GAME+':'+0, -1, -1); //the value doesn't matter here
                 goToGame();
             }
         }
@@ -85,6 +84,7 @@ public class Lobby extends AppCompatActivity{
     }
 
     private void goToGame(){
+        moveToGame = true;
         doUnbindService();
         Intent intent = new Intent(Lobby.this, InGame.class);
         intent.putExtra("myName", myTownName);
@@ -229,8 +229,6 @@ public class Lobby extends AppCompatActivity{
         return "error getting address";
     }
 
-
-
     /**
      * Used Android Developers References a lot for most of the Service stuff.
      * https://developer.android.com/reference/android/app/Service.html
@@ -254,12 +252,6 @@ public class Lobby extends AppCompatActivity{
             //Because its on the same thread, I can use mBoundService and interact with it more easily
             //But I do give the service a Messenger so it can interact with me
             mBoundService.registerClient(mMessenger);
-
-            // Tell the user about this for our demo.
-            Toast.makeText(Lobby.this, "socket service connected",
-                    Toast.LENGTH_SHORT).show();
-
-
         }
 
         public void onServiceDisconnected(ComponentName className) {
@@ -268,8 +260,6 @@ public class Lobby extends AppCompatActivity{
             // Because it is running in our same process, we should never
             // see this happen.
             mBoundService = null;
-            Toast.makeText(Lobby.this, "socket service connected",
-                    Toast.LENGTH_SHORT).show();
         }
     };
 
@@ -280,10 +270,13 @@ public class Lobby extends AppCompatActivity{
             mIntent = new Intent(Lobby.this, SocketService.class);
         else
             mIntent = intent;
+        //I start the service first, otherwise the service is destroyed when unbound, which I don't want to do
+        startService(mIntent);
         // Establish a connection with the service.  We use an explicit
         // class name because we want a specific service implementation that
         // we know will be running in our own process (and thus won't be
         // supporting component replacement by other applications).
+
         bindService(mIntent, mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
     }
@@ -301,7 +294,11 @@ public class Lobby extends AppCompatActivity{
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if(!moveToGame)
+            stopService(new Intent(Lobby.this, SocketService.class));
         doUnbindService();
+
+
     }
 
     private static class IncomingHandler extends Handler{
@@ -315,7 +312,7 @@ public class Lobby extends AppCompatActivity{
             if (activity != null) {
                 switch(msg.what){
                     case SocketService.MSG_INCOMING_DATA:
-                        activity.handleIncomingData(msg.arg1, (String)msg.obj);
+                        activity.handleIncomingData((String)msg.obj);
                         break;
                     default:
                         super.handleMessage(msg);
@@ -324,10 +321,8 @@ public class Lobby extends AppCompatActivity{
         }
     }
 
-    private final String BEGIN_GAME = "BG";
-
     //I use the playerOrder who sent it in case I must reply to that specific user (or all users but that one)
-    private void handleIncomingData(int playerOrderWhoSentThis, String dataString){
+    private void handleIncomingData(String dataString){
         ArrayList<DataMapping> list = parseIncomingData(dataString);
         for(DataMapping mapping : list){
             //host telling players what their player order is. Reply with the name of this user's town
@@ -346,16 +341,16 @@ public class Lobby extends AppCompatActivity{
             }
             //players telling you what their name is
             else if(mapping.keyWord.contains(SocketService.PLAYER_NAME)){
-//                int order = extractInt(mapping.keyWord);
+                int order = extractInt(mapping.keyWord);
                 String name = mapping.value;
-                addPlayerToList(name, playerOrderWhoSentThis);
+                addPlayerToList(name,order);
                 if(host){
                     //send the new name to all existing players
-                    mBoundService.sendData(SocketService.PLAYER_NAME+':'+name, -1, playerOrderWhoSentThis);
+                    mBoundService.sendData(SocketService.PLAYER_NAME+':'+name, -1, order);
                     //send existing player names to the new player
-                    for(int i = 0; i < playerOrderWhoSentThis; i++){
+                    for(int i = 0; i < order; i++){
                         int otherPlayerOrder = allPlayers.keyAt(i);
-                        mBoundService.sendData(SocketService.PLAYER_NAME+otherPlayerOrder+':'+allPlayers.valueAt(i).townName, playerOrderWhoSentThis, -1);
+                        mBoundService.sendData(SocketService.PLAYER_NAME+otherPlayerOrder+':'+allPlayers.valueAt(i).townName, order, -1);
                     }
                 }
                 //all players know the host (with key 0) is ready, so they change host's readiness automatically
@@ -364,18 +359,17 @@ public class Lobby extends AppCompatActivity{
                 }
             }
             else if(mapping.keyWord.contains(SocketService.CHANGE_READINESS)){
-//                int order = extractInt(mapping.value);
-                changeReadiness(playerOrderWhoSentThis);
+                int order = extractInt(mapping.value);
+                changeReadiness(order);
                 //If I'm the host, tell all other players that this player is (un)ready
                 if(host){
-                    mBoundService.sendData(SocketService.CHANGE_READINESS,-1, playerOrderWhoSentThis);
+                    mBoundService.sendData(SocketService.CHANGE_READINESS,-1, order);
                 }
             }
-            else if(mapping.keyWord.equals(BEGIN_GAME)){
+            else if(mapping.keyWord.equals("BG")){ //begin game
                 goToGame();
             }
         }
-        //TODO Well...parse and handle incoming data...
     }
 
     private ArrayList<DataMapping> parseIncomingData(String dataString){
