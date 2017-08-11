@@ -78,7 +78,7 @@ public class Lobby extends AppCompatActivity{
             //First thing they do when conencted is give me an order, so it means we're not connected yet
             if(myPlayerOrder != 0) {
                 changeReadiness(myPlayerOrder);
-                mBoundService.sendData(SocketService.CHANGE_READINESS + ':' + myPlayerOrder, 0, -1);
+                mBoundService.sendData(CHANGE_READINESS + ':' + myPlayerOrder, 0, -1);
             }
         }
     }
@@ -88,7 +88,7 @@ public class Lobby extends AppCompatActivity{
         doUnbindService();
         Intent intent = new Intent(Lobby.this, InGame.class);
         intent.putExtra("myName", myTownName);
-        for(int i = 0; i > allPlayers.size(); i++){
+        for(int i = 0; i < allPlayers.size(); i++){
             intent.putExtra("p"+i, allPlayers.get(i).townName);
         }
         startActivity(intent);
@@ -144,14 +144,14 @@ public class Lobby extends AppCompatActivity{
         name.measure(0,0);
         int desiredIconSize = name.getMeasuredHeight();
         LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
-        layout.addView(name);
+        layout.addView(name, playerOrder);
 
         //the right column is for the player's ready status
         ImageView image = allPlayers.get(playerOrder).readyIcon;
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(desiredIconSize, desiredIconSize);
         image.setLayoutParams(params);
         layout = (LinearLayout)findViewById(R.id.lobbyIconLayout);
-        layout.addView(image);
+        layout.addView(image, playerOrder);
 
         //the host is always ready
         if(host && townName.equals(myTownName)){
@@ -161,6 +161,11 @@ public class Lobby extends AppCompatActivity{
             changeReadiness(0);
             changeReadiness(0);
         }
+    }
+
+    private void removePlayerFromList(int playerOrder){
+        LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
+        layout.removeViewAt(playerOrder);
     }
 
     private class PlayerReadyContainer{
@@ -321,36 +326,63 @@ public class Lobby extends AppCompatActivity{
         }
     }
 
+
+    /**
+     * key for data indicating that readiness should be changed
+     */
+    private final String CHANGE_READINESS = "CR";
+
     //I use the playerOrder who sent it in case I must reply to that specific user (or all users but that one)
     private void handleIncomingData(String dataString){
+        /*
+         * key for data indicating that a player's name has been changed due to conflicts
+         */
+        final String CHANGE_NAME = "CN";
+        /*
+         * key for data indicating the player's name. The key should be appended by the player order
+         */
+        final String PLAYER_NAME = "PN";
+
         ArrayList<DataMapping> list = parseIncomingData(dataString);
         for(DataMapping mapping : list){
             //host telling players what their player order is. Reply with the name of this user's town
             if(mapping.keyWord.contains(SocketService.PLAYER_ORDER)){
                 if(!host) {
+                    removePlayerFromList(myPlayerOrder);
                     //change my playerOrder
-                    PlayerReadyContainer cont = allPlayers.get(myPlayerOrder);
                     allPlayers.remove(myPlayerOrder);
                     myPlayerOrder = Integer.parseInt(mapping.value);
-                    allPlayers.put(myPlayerOrder, cont);
                     //the keyword includes my player order
-                    mBoundService.sendData(SocketService.PLAYER_NAME+myPlayerOrder+':'+myTownName, 0,-1);
-                    if(allPlayers.get(myPlayerOrder).ready)
-                        mBoundService.sendData(SocketService.CHANGE_READINESS+':'+myPlayerOrder, 0, -1);
+                    mBoundService.sendData(PLAYER_NAME+myPlayerOrder+':'+myTownName, 0,-1);
                 }
             }
+            else if(mapping.keyWord.equals(CHANGE_NAME)){
+                allPlayers.get(myPlayerOrder).townName = mapping.value;
+                myTownName = mapping.value;
+                LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
+                TextView tv = (TextView)layout.getChildAt(myPlayerOrder);
+                tv.setText(mapping.value);
+            }
             //players telling you what their name is
-            else if(mapping.keyWord.contains(SocketService.PLAYER_NAME)){
+            else if(mapping.keyWord.contains(PLAYER_NAME)){
                 int order = extractInt(mapping.keyWord);
                 String name = mapping.value;
+                if(host){
+                    name = checkName(name);
+                }
                 addPlayerToList(name,order);
+                if(!host && order == myPlayerOrder-1)
+                    addPlayerToList(myTownName, myPlayerOrder);
                 if(host){
                     //send the new name to all existing players
-                    mBoundService.sendData(SocketService.PLAYER_NAME+':'+name, -1, order);
+                    mBoundService.sendData(PLAYER_NAME+':'+name, -1, order);
                     //send existing player names to the new player
                     for(int i = 0; i < order; i++){
                         int otherPlayerOrder = allPlayers.keyAt(i);
-                        mBoundService.sendData(SocketService.PLAYER_NAME+otherPlayerOrder+':'+allPlayers.valueAt(i).townName, order, -1);
+                        mBoundService.sendData(PLAYER_NAME+otherPlayerOrder+':'+allPlayers.valueAt(i).townName, order, -1);
+                    }
+                    if(!name.equals(mapping.value)){
+                        mBoundService.sendData(CHANGE_NAME+':'+name, order, -1);
                     }
                 }
                 //all players know the host (with key 0) is ready, so they change host's readiness automatically
@@ -358,18 +390,51 @@ public class Lobby extends AppCompatActivity{
                     changeReadiness(0);
                 }
             }
-            else if(mapping.keyWord.contains(SocketService.CHANGE_READINESS)){
+            else if(mapping.keyWord.contains(CHANGE_READINESS)){
                 int order = extractInt(mapping.value);
                 changeReadiness(order);
                 //If I'm the host, tell all other players that this player is (un)ready
                 if(host){
-                    mBoundService.sendData(SocketService.CHANGE_READINESS,-1, order);
+                    mBoundService.sendData(CHANGE_READINESS,-1, order);
                 }
             }
             else if(mapping.keyWord.equals("BG")){ //begin game
                 goToGame();
             }
         }
+    }
+
+    private String checkName(String name){
+        for(int i = 0; i < allPlayers.size(); i++){
+            if(allPlayers.valueAt(i).townName.equals(name)){
+                return getNewName(name);
+            }
+        }
+        return name;
+    }
+
+    private String getNewName(String name){
+        if(name == null || name.equals(""))
+            return "noName";
+        char c;
+        String s = "";
+
+        c = name.charAt(name.length()-1);
+        if(c >= '0' && c <= '9'){
+            s = c+s;
+        }
+        else
+            return name+2;
+
+        for(int i = name.length()-2; i >= 0; i--){
+            c = name.charAt(name.length()-i);
+            if(c >= '0' && c <= '9'){
+                s = c+s;
+            }
+            else
+                break;
+        }
+        return name+s;
     }
 
     private ArrayList<DataMapping> parseIncomingData(String dataString){

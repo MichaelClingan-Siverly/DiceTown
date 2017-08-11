@@ -12,7 +12,7 @@ public class Cafe extends Establishment implements Restaurant{
 
     @Override
     public int getCost() {
-        return 0;
+        return 2;
     }
 
     @Override

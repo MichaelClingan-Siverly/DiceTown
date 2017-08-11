@@ -10,7 +10,7 @@ public class RadioTower extends ConstructibleLandmark{
 
     @Override
     public int getCost() {
-        return 0;
+        return 22;
     }
 
     @Override

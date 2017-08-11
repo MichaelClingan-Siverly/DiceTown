@@ -12,7 +12,7 @@ public class ConventionCenter extends Establishment implements MajorEstablishmen
 
     @Override
     public int getCost() {
-        return 0;
+        return 7;
     }
 
     @Override

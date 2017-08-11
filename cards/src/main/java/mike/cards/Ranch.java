@@ -12,7 +12,7 @@ public class Ranch extends Establishment implements Livestock {
 
     @Override
     public int getCost() {
-        return 0;
+        return 1;
     }
 
     @Override

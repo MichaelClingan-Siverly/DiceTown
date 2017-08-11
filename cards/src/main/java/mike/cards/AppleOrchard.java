@@ -13,7 +13,7 @@ public class  AppleOrchard extends Establishment implements Crop{
 
     @Override
     public int getCost() {
-        return 0;
+        return 3;
     }
 
     @Override

@@ -12,7 +12,7 @@ public class BusinessCenter extends Establishment implements MajorEstablishment 
 
     @Override
     public int getCost() {
-        return 0;
+        return 8;
     }
 
     @Override

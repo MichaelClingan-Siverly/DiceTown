@@ -12,7 +12,7 @@ public class MackerelBoat extends Establishment implements PrimaryIndustry {
 
     @Override
     public int getCost() {
-        return 0;
+        return 2;
     }
 
     @Override

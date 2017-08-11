@@ -12,7 +12,7 @@ public class CheeseFactory extends Establishment implements SecondaryIndustry{
 
     @Override
     public int getCost() {
-        return 0;
+        return 5;
     }
 
     @Override

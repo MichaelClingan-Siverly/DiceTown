@@ -8,7 +8,7 @@ public class AmusementPark extends ConstructibleLandmark{
 
     @Override
     public int getCost() {
-        return 0;
+        return 16;
     }
 
     @Override

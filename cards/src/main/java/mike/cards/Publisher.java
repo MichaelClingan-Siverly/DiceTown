@@ -12,7 +12,7 @@ public class Publisher extends Establishment implements MajorEstablishment {
 
     @Override
     public int getCost() {
-        return 0;
+        return 5;
     }
 
     @Override

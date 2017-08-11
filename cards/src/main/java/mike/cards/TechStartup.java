@@ -22,7 +22,7 @@ public class TechStartup extends Establishment implements MajorEstablishment {
 
     @Override
     public int getCost() {
-        return 0;
+        return 1;
     }
 
     @Override

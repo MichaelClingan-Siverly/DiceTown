@@ -12,7 +12,7 @@ public class FlowerOrchard extends Establishment implements Crop {
 
     @Override
     public int getCost() {
-        return 0;
+        return 2;
     }
 
     @Override

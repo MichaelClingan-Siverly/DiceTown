@@ -12,7 +12,7 @@ public class RenoCompany extends Establishment implements MajorEstablishment {
 
     @Override
     public int getCost() {
-        return 0;
+        return 4;
     }
 
     @Override

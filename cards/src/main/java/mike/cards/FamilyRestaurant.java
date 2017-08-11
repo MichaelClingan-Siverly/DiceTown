@@ -12,7 +12,7 @@ public class FamilyRestaurant extends Establishment implements Restaurant {
 
     @Override
     public int getCost() {
-        return 0;
+        return 3;
     }
 
     @Override

@@ -10,7 +10,7 @@ public class Airport extends ConstructibleLandmark {
 
     @Override
     public int getCost() {
-        return 0;
+        return 30;
     }
 
     @Override

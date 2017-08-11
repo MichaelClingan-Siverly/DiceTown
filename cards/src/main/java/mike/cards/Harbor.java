@@ -10,7 +10,7 @@ public class Harbor extends ConstructibleLandmark {
 
     @Override
     public int getCost() {
-        return 0;
+        return 2;
     }
 
     @Override

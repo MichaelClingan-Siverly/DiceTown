@@ -12,7 +12,7 @@ public class FlowerShop extends Establishment implements Shop {
 
     @Override
     public int getCost() {
-        return 0;
+        return 1;
     }
 
     @Override

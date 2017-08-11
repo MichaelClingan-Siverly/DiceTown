@@ -12,7 +12,7 @@ public class ProduceMarket extends Establishment implements SecondaryIndustry {
 
     @Override
     public int getCost() {
-        return 0;
+        return 2;
     }
 
     @Override

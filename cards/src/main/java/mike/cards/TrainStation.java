@@ -10,7 +10,7 @@ public class TrainStation extends ConstructibleLandmark {
 
     @Override
     public int getCost() {
-        return 0;
+        return 4;
     }
 
     @Override
