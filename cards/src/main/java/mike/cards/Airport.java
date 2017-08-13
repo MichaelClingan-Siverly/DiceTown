@@ -25,7 +25,7 @@ public class Airport extends ConstructibleLandmark {
 
     @Override
     public int getGridImageId() {
-        return R.drawable.airport;
+        return R.drawable.airport_icon;
     }
 
     @Override

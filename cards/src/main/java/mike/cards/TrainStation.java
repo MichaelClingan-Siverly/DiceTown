@@ -25,7 +25,7 @@ public class TrainStation extends ConstructibleLandmark {
 
     @Override
     public int getGridImageId() {
-        return 0;
+        return R.drawable.train_station_icon;
     }
 
     @Override

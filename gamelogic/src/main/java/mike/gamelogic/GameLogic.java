@@ -71,7 +71,8 @@ public class GameLogic implements HandlesLogic {
         if(myPlayerOrder == 0) {
             playersInGame++;
             //tell clients to begin game after host is in to ensure that clients wont join first
-            ui.sendMessage("BG:0", -1, -1);
+            //TODO uncomment this
+//            ui.sendMessage("BG:0", -1, -1);
             ui.makeToast("Building the market...");
             deck = new Deck(players.length);
         }

@@ -74,14 +74,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     public static final String PLAYER_ORDER = "PO";
     /**
-     * key for data indicating the player's name. The key should be appended by the player order
-     */
-    public static final String PLAYER_NAME = "PN";
-    /**
-     * key for data indicating that readiness should be changed
-     */
-    public static final String CHANGE_READINESS = "CR";
-    /**
      * key for data indicating that the socket is being closed
      */
     public static final String CLOSED_SOCKET = "CS";

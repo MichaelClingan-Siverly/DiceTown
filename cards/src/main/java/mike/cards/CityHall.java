@@ -27,7 +27,7 @@ public class CityHall extends Card implements Landmark{
 
     @Override
     public int getGridImageId() {
-        return R.drawable.city_hall;
+        return R.drawable.city_hall_icon;
     }
 
     @Override

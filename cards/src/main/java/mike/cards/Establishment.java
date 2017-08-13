@@ -12,6 +12,9 @@ public abstract class Establishment extends Card {
         numCopies++;
         numRenovated++;
     }
+    public void setNumCopies(int num){
+        numCopies = num;
+    }
 
     public void removeCopy(){
         if(numCopies > 0){

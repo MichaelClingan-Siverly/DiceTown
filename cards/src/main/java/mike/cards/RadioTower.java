@@ -25,7 +25,7 @@ public class RadioTower extends ConstructibleLandmark{
 
     @Override
     public int getGridImageId() {
-        return R.drawable.radio_tower;
+        return R.drawable.radio_tower_icon;
     }
 
     @Override

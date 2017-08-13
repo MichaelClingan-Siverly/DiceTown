@@ -23,7 +23,7 @@ public class AmusementPark extends ConstructibleLandmark{
 
     @Override
     public int getGridImageId() {
-        return R.drawable.amusement_park;
+        return R.drawable.amusement_park_icon;
     }
 
     @Override

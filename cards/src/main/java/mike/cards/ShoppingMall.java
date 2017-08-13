@@ -25,7 +25,7 @@ public class ShoppingMall extends ConstructibleLandmark{
 
     @Override
     public int getGridImageId() {
-        return R.drawable.shopping_mall;
+        return R.drawable.shopping_mall_icon;
     }
 
     @Override

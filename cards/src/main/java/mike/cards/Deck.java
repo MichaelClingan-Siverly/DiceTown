@@ -18,7 +18,7 @@ public class Deck {
 //    public static final ArraySet<String> secondaryIndustryCodes = new ArraySet<>(Arrays.asList("CF", "FF", "PM", "FW", "DC", "LO", "W", "MC", "BP"));
 //    public static final ArraySet<String> cropCodes = new ArraySet<>(Arrays.asList("CO", "AO", "FO", "WF", "V"));
 //    public static final ArraySet<String> livestockCodes = new ArraySet<>();
-//    public static final ArraySet<String> majorEstablishmentCodes = new ArraySet<>(Arrays.asList("S", "TV", "BC", "PB", "TO", "RC", "TS", "P"));
+    private final ArraySet<String> majorEstablishmentCodes = new ArraySet<>(Arrays.asList("S", "TV", "BC", "PB", "TO", "RC", "TS", "P", "CC"));
 //    public static final ArraySet<String> naturalResourceCodes = new ArraySet<>(Arrays.asList("M", "F"));
 //    public static final ArraySet<String> shopCodes = new ArraySet<>(Arrays.asList("B", "CS", "FS", "GS"));
 //    public static final ArraySet<String> restaurantCodes = new ArraySet<>(Arrays.asList("FA", "C", "SB", "PJ", "BS", "FR", "EC"));
@@ -50,7 +50,7 @@ public class Deck {
                 Establishment newCard = establishments[poolIndex].getClass().newInstance();
                 establishments[poolIndex].removeCopy();
                 if(establishments[poolIndex].getNumCopies() == 0)
-                    removeFromPool(establishments, poolIndex);
+                    poolLength = removeFromPool(establishments, poolIndex, poolLength);
                 deck.push(newCard);
             } catch (InstantiationException | IllegalAccessException e) {
                 //all the cards have no parametrized constructors, so instantiation is good
@@ -61,28 +61,23 @@ public class Deck {
     }
 
     private void addCopiesToPool(Establishment[] establishments, int numPlayers){
+        final int nonMajorEstablishmentCopiesInDeck = 6;
         for(Establishment c : establishments){
             //major establishments get one copy for each player
-            if(c instanceof MajorEstablishment){
-                for(int i = 0; i < numPlayers; i++){
-                    c.addCopy();
-                }
+            if(majorEstablishmentCodes.contains(c.getCode())){
+                c.setNumCopies(numPlayers);
             }
             //other establishments get 6 copies each regardless of amount of players
             else{
-                for(int i = 0; i < 6; i++){
-                    c.addCopy();
-                }
+                c.setNumCopies(nonMajorEstablishmentCopiesInDeck);
             }
         }
     }
 
-    private int removeFromPool(Establishment[] establishments, int indexToRemove){
-        if(indexToRemove == establishments.length-1)
-            return indexToRemove - 1;
-        else
-            establishments[indexToRemove] = establishments[establishments.length-1];
-        return establishments.length-2;
+    private int removeFromPool(Establishment[] establishments, int indexToRemove, int poolLength){
+        if(indexToRemove != poolLength-1)
+            establishments[indexToRemove] = establishments[poolLength-1];
+        return poolLength-1;
     }
 
     public Establishment draw(){

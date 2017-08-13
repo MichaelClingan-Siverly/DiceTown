@@ -28,6 +28,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.lang.ref.WeakReference;
@@ -66,8 +67,7 @@ public class InGame extends AppCompatActivity implements UI {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_in_game);
         doBindService(new Intent(InGame.this, SocketService.class));
-        getExtras();
-        initButtons();
+        //shouldn't do stuff that requires the activity here, since its  not blocking
         //the logic should determine when the town should be displayed
     }
 
@@ -113,6 +113,16 @@ public class InGame extends AppCompatActivity implements UI {
             frame.setVisibility(View.GONE);
             //I don't need to create or store the IDs since I can just getChildAt(int index) to change the buttons
             grid.addView(frame);
+        }
+
+        LinearLayout landmarkLayout = (LinearLayout)findViewById(R.id.landmarkBar);
+        int size = landmarkLayout.getWidth() / landmarkLayout.getChildCount();
+        ImageButton button;
+        for(int i = 0; i < landmarkLayout.getChildCount(); i++){
+            button = (ImageButton)landmarkLayout.getChildAt(i);
+            button.setAdjustViewBounds(true);
+            button.setMaxHeight(size);
+            button.setScaleType(ImageView.ScaleType.FIT_END);
         }
     }
 
@@ -578,24 +588,30 @@ public class InGame extends AppCompatActivity implements UI {
         LinearLayout landmarkLayout = (LinearLayout)findViewById(R.id.landmarkBar);
         for(int i = 0; i < landmarks.length; i++){
             ImageButton button = (ImageButton)landmarkLayout.getChildAt(i);
-            button.setBackgroundResource(landmarks[0].getGridImageId());
-            button.setImageResource(landmarks[0].getNumRenovatedResId());
+            button.setBackgroundResource(landmarks[i].getGridImageId());
+            button.setImageResource(landmarks[i].getNumRenovatedResId());
+            //TODO set onClickListener to display full card
         }
     }
     private void displayEstablishmentIcons(Establishment[] establishments){
         GridLayout grid = (GridLayout)findViewById(R.id.establishmentGrid);
         grid.setColumnCount(4);
+        FrameLayout frame;
+        //TODO this nothing here shows up: even setting a background for the grid doesnt work
         //first clears all views set by previous city visited
         for(int i = 0; i < grid.getChildCount(); i++){
-            ((FrameLayout)grid.getChildAt(i)).removeAllViews();
+            frame = (FrameLayout)grid.getChildAt(i);
+            frame.removeAllViews();
+            frame.setVisibility(View.GONE);
         }
         //I want cards to keep a nice poker card size ratio, and for a full row to take up screen width
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        Establishment e;
         for(int i = 0; i < establishments.length; i++){
-            Establishment e = establishments[i];
+            e = establishments[i];
             //I use a FrameLayout because I can't set a foreground without it
             // (View adds setForeground at a higher API than I'd like)
-            FrameLayout frame = (FrameLayout)grid.getChildAt(i);
+            frame = (FrameLayout)grid.getChildAt(i);
             ImageButton button = new ImageButton(this);
             //card image
             button.setBackgroundResource(e.getGridImageId());
@@ -620,6 +636,7 @@ public class InGame extends AppCompatActivity implements UI {
             //almost forgot to add the views to the frame
             frame.addView(button);
             frame.addView(foreground);
+            frame.setVisibility(View.VISIBLE);
         }
     }
 
@@ -646,7 +663,7 @@ public class InGame extends AppCompatActivity implements UI {
     }
 
     @Override
-    public void sendMessage(String data, int indexToSendTo, int indexToSkip) {
+    public void sendMessage(String data, int indexToSkip, int indexToSendTo) {
         mBoundService.sendData(data, indexToSendTo, indexToSkip);
     }
 
@@ -657,7 +674,8 @@ public class InGame extends AppCompatActivity implements UI {
 
     @Override
     public void changeMoney(int newMoney) {
-        ((TextView)findViewById(R.id.coinAmountText)).setText(String.valueOf(money));
+        String s = " "+newMoney;
+        ((TextView)findViewById(R.id.coinAmountText)).setText(s);
     }
 
     @Override
@@ -673,6 +691,9 @@ public class InGame extends AppCompatActivity implements UI {
         public void onServiceConnected(ComponentName className, IBinder service) {
             mBoundService = ((SocketService.LocalBinder)service).getService();
             mBoundService.registerClient(mMessenger);
+            initButtons();
+            getExtras();
+
         }
 
         public void onServiceDisconnected(ComponentName className) {

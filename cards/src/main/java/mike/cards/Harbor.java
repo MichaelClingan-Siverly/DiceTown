@@ -25,7 +25,7 @@ public class Harbor extends ConstructibleLandmark {
 
     @Override
     public int getGridImageId() {
-        return R.drawable.harbor;
+        return R.drawable.harbor_icon;
     }
 
     @Override
