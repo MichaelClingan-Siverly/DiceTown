@@ -7,15 +7,35 @@ import android.support.v4.util.ArraySet;
 import mike.cards.Airport;
 import mike.cards.AmusementPark;
 import mike.cards.Bakery;
+import mike.cards.BusinessCenter;
+import mike.cards.Cafe;
 import mike.cards.CityHall;
 import mike.cards.ConstructibleLandmark;
+import mike.cards.ConventionCenter;
+import mike.cards.DemoCompany;
+import mike.cards.ExclusiveClub;
+import mike.cards.FlowerOrchard;
+import mike.cards.FlowerShop;
 import mike.cards.Harbor;
 import mike.cards.Landmark;
 import mike.cards.Establishment;
+import mike.cards.LoanOffice;
+import mike.cards.MovingCompany;
+import mike.cards.Park;
+import mike.cards.ProduceMarket;
+import mike.cards.Publisher;
 import mike.cards.RadioTower;
+import mike.cards.RenoCompany;
 import mike.cards.ShoppingMall;
+import mike.cards.Stadium;
+import mike.cards.TaxOffice;
+import mike.cards.TechStartup;
 import mike.cards.TrainStation;
+import mike.cards.TunaBoat;
+import mike.cards.TvStation;
+import mike.cards.Vineyard;
 import mike.cards.WheatField;
+import mike.cards.Winery;
 
 /**
  * Created by mike on 7/12/2017.
@@ -29,13 +49,15 @@ public class Player implements HasCards{
     private String name;
 
     public Player(String townName){
+        myCity = new ArraySet<>();
         name = townName;
-        myCity = new ArraySet<>(5);
-        myCity.add(new Bakery());
         myCity.add(new WheatField());
+        myCity.add(new Bakery());
+
         //add all the landmarks (only City Hall is constructed at start of game)
         myLandmarks = new Landmark[]{new CityHall(), new Harbor(), new TrainStation(),
                 new ShoppingMall(), new AmusementPark(), new RadioTower(), new Airport()};
+
         money = 3;
     }
 
@@ -55,7 +77,12 @@ public class Player implements HasCards{
     public void buyCard(ConstructibleLandmark card){
         if(card.getCost() <= money){
             money -= card.getCost();
-            card.finishRenovation();
+            for(Landmark landmark : myLandmarks){
+                if(landmark.equals(card)){
+                    landmark.finishRenovation();
+                    return;
+                }
+            }
         }
     }
     @Override
@@ -88,12 +115,12 @@ public class Player implements HasCards{
         return false;
     }
 
-    public boolean checkIfCardOwned(Establishment building){
+    public int checkIfCardOwned(Establishment building){
         if(myCity.contains(building)){
             int index = myCity.indexOf(building);
-            return myCity.valueAt(index).getNumCopies() > 0;
+            return myCity.valueAt(index).getNumCopies();
         }
-        return false;
+        return 0;
     }
     @Override
     public Establishment[] getCity(){
@@ -122,5 +149,27 @@ public class Player implements HasCards{
     @Override
     public String getName(){
         return name;
+    }
+
+    public void removeCopyOfEstablishment(Establishment card, boolean friendly){
+        int i = myCity.indexOf(card);
+        if(i >= 0){
+            if(friendly)
+                myCity.valueAt(i).removeCopy();
+            else
+                myCity.valueAt(i).removeCopyFromOpponent();
+
+            if(myCity.valueAt(i).getNumCopies() == 0)
+                myCity.removeAt(i);
+        }
+    }
+
+    public int getNumConstructedLandmarks(){
+        int myConstructedLandmarks = 0;
+        for(int i = 1; i < myLandmarks.length; i++){
+            if(myLandmarks[i].getNumAvailable() > 0)
+                myConstructedLandmarks++;
+        }
+        return myConstructedLandmarks;
     }
 }

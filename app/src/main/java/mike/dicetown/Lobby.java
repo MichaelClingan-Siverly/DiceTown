@@ -442,11 +442,9 @@ public class Lobby extends AppCompatActivity{
         int i = 0;
         int j = i; //keeps track of the old index
         String a = null;
-        String b = null;
         while((i = dataString.indexOf(':', i)) != -1){
             if(a != null){
-                b = dataString.substring(j, i);
-                list.add(new DataMapping(a, b));
+                list.add(new DataMapping(a, dataString.substring(j, i)));
                 a = null;
             }
             else{
@@ -455,9 +453,8 @@ public class Lobby extends AppCompatActivity{
             i++;
             j = i;
         }
-        if(a != null && b == null){
-            b = dataString.substring(j);
-            list.add(new DataMapping(a,b));
+        if(a != null && dataString.length() >= i){
+            list.add(new DataMapping(a, dataString.substring(j)));
         }
         return list;
     }

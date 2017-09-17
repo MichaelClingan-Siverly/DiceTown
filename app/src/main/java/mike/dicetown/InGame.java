@@ -28,6 +28,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
+import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -37,11 +38,11 @@ import java.util.Arrays;
 import java.util.Random;
 
 import mike.cards.Card;
-import mike.cards.CardDisplayable;
 import mike.cards.Deck;
 import mike.cards.Establishment;
 import mike.cards.Landmark;
 import mike.cards.MajorEstablishment;
+import mike.cards.TechStartup;
 import mike.gamelogic.GameLogic;
 import mike.gamelogic.HandlesLogic;
 import mike.gamelogic.HasCards;
@@ -54,18 +55,30 @@ public class InGame extends AppCompatActivity implements UI {
     private boolean mIsBound = false;
     private final Messenger mMessenger = new Messenger(new IncomingHandler(InGame.this));
     private HandlesLogic logic;
-    private int indexOfLastSelectedCard = -1;
-    private int money = -1;
+    private int indexOfLastSelected = -1;
     private AlertDialog pickDialog = null;
     private String playerPick = null;
     private String owner = null;
     private Card pickedCard = null;
+    private PopupWindow popup;
+    private int roll1;
+    private int roll2;
+    private String lastMidButtonText;
+
+    //requires v to have a tag set with the resource id of the card
+    private View.OnClickListener cardClickListener = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            displayCard((int)v.getTag());
+        }
+    };
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_in_game);
+
         doBindService(new Intent(InGame.this, SocketService.class));
         //shouldn't do stuff that requires the activity here, since its  not blocking
         //the logic should determine when the town should be displayed
@@ -73,11 +86,18 @@ public class InGame extends AppCompatActivity implements UI {
 
     //this needs to be public because Buttons made in xml use it
     public void middleButton(View view){
-        Button b = (Button)view;
-        if(b.getText().equals(getString(R.string.backToPick))){
-            pickDialog.show();
-        }
+        resetMidButtonText(true);
         logic.middleButtonPressed();
+    }
+
+    private void resetMidButtonText(boolean showDialog){
+        Button b = (Button)findViewById(R.id.inGameMiddleButton);
+        if(b.getText().equals(getString(R.string.backToPick)) || b.getText().equals(getString(R.string.rollDice))){
+            b.setText(lastMidButtonText);
+            lastMidButtonText = null;
+        }
+        if(showDialog && pickDialog != null)
+            pickDialog.show();
     }
 
     //finds this player's player order and fills the array of Players where each index is their playerOrder
@@ -96,14 +116,20 @@ public class InGame extends AppCompatActivity implements UI {
             mPlayers.add(new Player(name));
             i++;
         }
+
+
         Player[] players = mPlayers.toArray(new Player[mPlayers.size()]);
+        Player me = players[myPlayerOrder];
+        displayTown(me.getName(), me.getMoney(), me.getCity(), me.getLandmarks(), true);
+
         logic = new GameLogic(InGame.this, players, myPlayerOrder);
     }
 
     private void initButtons(){
         GridLayout grid = (GridLayout)findViewById(R.id.establishmentGrid);
         //I want cards to keep a nice poker card size ratio, and for a full row to take up screen width
-        int width = grid.getWidth() / grid.getColumnCount();
+        int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
+        int width = screenWidth / grid.getColumnCount();
         int height = (int)(1.4 * width);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
         for(int i = 0; i < Deck.NUM_ESTABLISHMENTS; i++){
@@ -116,13 +142,14 @@ public class InGame extends AppCompatActivity implements UI {
         }
 
         LinearLayout landmarkLayout = (LinearLayout)findViewById(R.id.landmarkBar);
-        int size = landmarkLayout.getWidth() / landmarkLayout.getChildCount();
+        int size = screenWidth / landmarkLayout.getChildCount();
         ImageButton button;
         for(int i = 0; i < landmarkLayout.getChildCount(); i++){
             button = (ImageButton)landmarkLayout.getChildAt(i);
             button.setAdjustViewBounds(true);
             button.setMaxHeight(size);
             button.setScaleType(ImageView.ScaleType.FIT_END);
+            button.setOnClickListener(cardClickListener);
         }
     }
 
@@ -140,84 +167,141 @@ public class InGame extends AppCompatActivity implements UI {
     }
 
     @Override
-    public void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat) {
+    public void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat, int rerollDice) {
+        if(popup != null) {
+            popup.dismiss();
+            popup = null;
+        }
+
         AlertDialog.OnClickListener diceListener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                int roll1 = 0;
-                int roll2 = 0;
-                switch (which){
+                roll1 = 0;
+                roll2 = 0;
+                switch (which) {
                     case DialogInterface.BUTTON_NEGATIVE:
-                        ((Button)findViewById(R.id.inGameMiddleButton)).setText(R.string.rollDice);
-                        return;
+                        pickDialog = null;
+                        roll1 = Dice.roll(1);
+                        break;
                     case DialogInterface.BUTTON_POSITIVE:
+                        pickDialog = null;
                         roll1 = Dice.roll(1);
                         roll2 = Dice.roll(1);
                         break;
                     case DialogInterface.BUTTON_NEUTRAL:
-                        roll1 = Dice.roll(1);
-                        break;
+                        lastMidButtonText = ((Button) findViewById(R.id.inGameMiddleButton)).getText().toString();
+                        ((Button) findViewById(R.id.inGameMiddleButton)).setText(R.string.rollDice);
+                        return;
                 }
-                logic.diceRolled(roll1, roll2);
                 displayDiceRoll(roll1, roll2);
             }
         };
         AlertDialog.Builder diceBuilder = new AlertDialog.Builder(InGame.this);
-        if(trainStationOwned || forTunaBoat)
+        diceBuilder.setCancelable(false);
+        if (forTunaBoat)
+            diceBuilder.setTitle("Roll dice for tuna boat");
+        else if(rerollDice == 1 || rerollDice == 2)
+            diceBuilder.setTitle("Reroll Dice");
+        else
+            diceBuilder.setTitle("Roll dice to start turn");
+        if (((trainStationOwned || forTunaBoat) && rerollDice != 2 && rerollDice != 1) || rerollDice == 2)
             diceBuilder.setPositiveButton(R.string.twoDice, diceListener);
-        if(!forTunaBoat) {
-            diceBuilder.setNeutralButton(R.string.oneDice, diceListener);
-            diceBuilder.setNegativeButton(R.string.cancelDice, diceListener);
-        }
-        diceBuilder.show();
+
+        diceBuilder.setNeutralButton(R.string.cancelDice, diceListener);
+        if(rerollDice != 2 && !forTunaBoat)
+            diceBuilder.setNegativeButton(R.string.oneDice, diceListener);
+        pickDialog = diceBuilder.show();
     }
 
     @Override
     public void displayDiceRoll(int d1, int d2){
+        RelativeLayout diceLayout;
+        View rootLayout = findViewById(R.id.inGameLayout);
         AnimationDrawable rollOneAnimation = new AnimationDrawable();
         rollOneAnimation.setOneShot(true);
 
         AnimationDrawable rollTwoAnimation = new AnimationDrawable();
         rollTwoAnimation.setOneShot(true);
 
-        int frames = new Random().nextInt(8)+8;
+        int frames = new Random().nextInt(3)+12;
+        int lastD1Side = 0;
+        int lastD2Side = 0;
         for(int i = 0; i < frames; i++){
-            addToDiceAnimation(rollOneAnimation, 0);
+            lastD1Side = addToDiceAnimation(rollOneAnimation, 0, lastD1Side);
             if(d2 > 0) {
-                addToDiceAnimation(rollTwoAnimation, 0);
+                lastD2Side = addToDiceAnimation(rollTwoAnimation, 0, lastD2Side);
             }
         }
         //I'm doing a bunch of work to make it look all nice and fancy below this comment.
-        PopupWindow popup = new PopupWindow(this);
+        popup = new PopupWindow(this);
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        LinearLayout layout = new LinearLayout(this);
         //finds width of the screen
-        int size = Resources.getSystem().getDisplayMetrics().widthPixels;
+        int size = rootLayout.getWidth();
         size = size/3;
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+        RelativeLayout.LayoutParams d1Params = new RelativeLayout.LayoutParams(size, size);
+        diceLayout = new RelativeLayout(this);
+        diceLayout.setFocusable(true);
+
+
+        RelativeLayout.LayoutParams buttonParams = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        buttonParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        buttonParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+        Button button = new Button(this);
+        button.setText(R.string.continuePrompt);
+        button.setLayoutParams(buttonParams);
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(popup != null)
+                    popup.dismiss();
+                popup = null;
+                logic.diceRolled(roll1, roll2);
+            }
+        });
+        diceLayout.addView(button);
 
         //make sure that the animation ends on the correct dice value(s) and add them to the layout
-        addToDiceAnimation(rollOneAnimation, d1);
+        addToDiceAnimation(rollOneAnimation, d1, -1);
         ImageView v1 = new ImageView(this);
         v1.setScaleType(ImageView.ScaleType.FIT_CENTER);
         v1.setImageDrawable(rollOneAnimation);
-        params.setMarginStart(size/4);
-        params.setMarginEnd(size/2);
-        v1.setLayoutParams(params);
-        layout.addView(v1);
+        d1Params.setMarginStart(size/4);
+        d1Params.setMarginEnd(size/4);
+        v1.setLayoutParams(d1Params);
+        diceLayout.addView(v1);
         if(d2 > 0) {
-            addToDiceAnimation(rollTwoAnimation, d2);
+            RelativeLayout.LayoutParams invisibleParams = new RelativeLayout.LayoutParams(0, 0);
+            invisibleParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+            TextView tv = new TextView(this);
+            tv.setId(View.generateViewId());
+            tv.setLayoutParams(invisibleParams);
+            diceLayout.addView(tv);
+
+            RelativeLayout.LayoutParams d2Params = new RelativeLayout.LayoutParams(d1Params);
+            addToDiceAnimation(rollTwoAnimation, d2, -1);
             ImageView v2 = new ImageView(this);
             v2.setScaleType(ImageView.ScaleType.FIT_CENTER);
             v2.setImageDrawable(rollTwoAnimation);
-            params.setMarginStart(size/2);
-            params.setMarginEnd(size/4);
-            v2.setLayoutParams(params);
-            layout.addView(v2);
+            d2Params.setMarginEnd(size/4);
+            d2Params.addRule(RelativeLayout.RIGHT_OF, v1.getId());
+            v2.setLayoutParams(d2Params);
+            diceLayout.addView(v2);
+
+            d1Params.addRule(RelativeLayout.LEFT_OF, tv.getId());
+            d1Params.addRule(RelativeLayout.CENTER_VERTICAL);
+            d2Params.addRule(RelativeLayout.RIGHT_OF, tv.getId());
+            d2Params.addRule(RelativeLayout.CENTER_VERTICAL);
+        }
+        else{
+            d1Params.addRule(RelativeLayout.CENTER_IN_PARENT);
         }
 
-        popup.setContentView(layout);
-        popup.showAtLocation(getCurrentFocus(), Gravity.CENTER, 0, 0);
+        popup.setWidth(rootLayout.getWidth());
+        popup.setHeight(rootLayout.getHeight());
+        popup.setContentView(diceLayout);
+        popup.setBackgroundDrawable(getDrawable(R.drawable.background));
+
+        popup.showAtLocation(rootLayout, Gravity.CENTER, 0, 0);
         rollOneAnimation.start();
         if(d2 > 0)
             rollTwoAnimation.start();
@@ -225,12 +309,16 @@ public class InGame extends AppCompatActivity implements UI {
         //since its a popup, the user can easily close it when it finishes (I think even before that if they want)
     }
 
-    private void addToDiceAnimation(AnimationDrawable drawable, int roll){
+    private int addToDiceAnimation(AnimationDrawable drawable, int roll, int prevRoll){
         final int duration = 83;
         int value = roll;
         int id = 0;
-        if(value < 1 || value > 6)
-            value = Dice.roll(1);
+        do{
+            if (roll < 1 || roll > 6) {
+                value = Dice.roll(1);
+            }
+        }while(value == prevRoll);
+
         switch (value){
             case 1:
                 id = R.drawable.d1;
@@ -252,25 +340,31 @@ public class InGame extends AppCompatActivity implements UI {
                 break;
         }
         Drawable d = getDrawable(id);
-        if(d == null)
-            return;
-        drawable.addFrame(d, duration);
+        if(d != null)
+            drawable.addFrame(d, duration);
+        return value;
     }
 
     @Override
-    public void pickPlayer(Player[] players, int myIndex){
+    public void pickPlayer(Player[] players, int myIndex, String title){
+        indexOfLastSelected = -1;
+        ScrollView outerLayout = (ScrollView)getLayoutInflater().inflate(R.layout.pick_card, null);
+        LinearLayout layout = (LinearLayout)outerLayout.getChildAt(0);
+        layout.setGravity(Gravity.CENTER);
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Pick who to give it to");
+        builder.setTitle(title);
+        builder.setMessage("(name : money)");
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
                 if(which == AlertDialog.BUTTON_POSITIVE){
-                    if(playerPick == null)
-                        pickDialog.show();
+                    if(playerPick == null) {
+                        makeToast("no player selected");
+                    }
                     else {
-                        logic.selectPlayer(playerPick);
+                        dialog.dismiss();
                         pickDialog = null;
+                        logic.selectPlayer(playerPick);
                     }
                 }
                 else if(which == AlertDialog.BUTTON_NEUTRAL){
@@ -280,31 +374,44 @@ public class InGame extends AppCompatActivity implements UI {
                 playerPick = null;
             }
         };
-        builder.setNeutralButton(R.string.viewCities, listener);
-        LinearLayout layout = (LinearLayout)findViewById(R.id.pickCardLayout);
         View.OnClickListener buttonListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                playerPick = ((Button)v).getText().toString();
+                LinearLayout layout = (LinearLayout)pickDialog.findViewById(R.id.pickCardLayout);
+                if(layout == null)
+                    return;
+                int index = layout.indexOfChild(v);
+                //check if old index has a border and remove it if it does
+                if(indexOfLastSelected >= 0)
+                    layout.getChildAt(indexOfLastSelected).setBackgroundResource(android.R.drawable.btn_default);
+                indexOfLastSelected = index;
+                v.setBackgroundColor(Color.GRAY);
+                playerPick = (String)v.getTag();
             }
         };
         for(int i = 0; i < players.length; i++){
             if(i != myIndex){
                 Button b = new Button(this);
-                b.setText(players[i].getName() + " : " + players[i].getMoney());
+                String name = players[i].getName();
+                b.setText(name + " : " + players[i].getMoney());
                 b.setTextSize(20);
+                b.setTag(name);
                 b.setOnClickListener(buttonListener);
                 layout.addView(b);
             }
         }
-        builder.setView(layout);
+        builder.setNeutralButton(R.string.viewCities, listener);
+        builder.setPositiveButton("ok", listener);
+        builder.setView(outerLayout);
         pickDialog = builder.show();
     }
 
     @Override
-    public void pickCard(HasCards cardOwners[], String myName, boolean nonMajor) {
-        LinearLayout layout = (LinearLayout)findViewById(R.id.pickCardLayout);
-        indexOfLastSelectedCard = -1;
+    public void pickCard(HasCards cardOwners[], String myName, String message, boolean nonMajor) {
+        ScrollView outerLayout = (ScrollView)getLayoutInflater().inflate(R.layout.pick_card, null);
+        LinearLayout layout = (LinearLayout)outerLayout.getChildAt(0);
+        layout.setGravity(Gravity.CENTER);
+        indexOfLastSelected = -1;
 
         final AlertDialog.Builder builder = new AlertDialog.Builder(this);
         DialogInterface.OnClickListener lockInSelection = new DialogInterface.OnClickListener() {
@@ -315,8 +422,8 @@ public class InGame extends AppCompatActivity implements UI {
                     if(pickedCard == null)
                         pickDialog.show();
                     else {
-                        logic.selectCard(pickedCard, owner);
                         pickDialog = null;
+                        logic.selectCard(pickedCard, owner);
                     }
                 }
                 else if(which == AlertDialog.BUTTON_NEUTRAL){
@@ -329,13 +436,16 @@ public class InGame extends AppCompatActivity implements UI {
         };
         builder.setPositiveButton("select", lockInSelection);
         builder.setNeutralButton("view cities", lockInSelection);
-        builder.setTitle("Select A Card");
+        String title = "Select A Card for "+ message;
+        builder.setTitle(title);
+        builder.setCancelable(false);
 
         for(HasCards owner : cardOwners){
             String playerName = owner.getName();
             TextView tv = new TextView(this);
             tv.setText(playerName);
             tv.setTextSize(20);
+            tv.setGravity(Gravity.CENTER);
             layout.addView(tv);
             for(Establishment card : owner.getCity()){
                 if(nonMajor ^ card instanceof MajorEstablishment) {
@@ -350,7 +460,6 @@ public class InGame extends AppCompatActivity implements UI {
                             //the exception to this are loan offices. Give away constructed ones first
                         else if (card.getNumCopies() - card.getNumAvailable() > 0 && myName.equals(playerName) && !card.getCode().equals("LO"))
                             e.closeForRenovation();
-                        button.setTag(1, e);
                     } catch (Exception e1) {
                         e1.printStackTrace();
                     }
@@ -358,36 +467,149 @@ public class InGame extends AppCompatActivity implements UI {
                 }
             }
         }
-        builder.setView(layout);
+        builder.setView(outerLayout);
         pickDialog = builder.show();
     }
+
+    @Override
+    public void pickCard(Establishment[] market, Landmark[]myLandmarks, final int money, final ArraySet<Establishment> myCity) {
+        DialogInterface.OnClickListener lockInSelection = new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+                if(which == AlertDialog.BUTTON_POSITIVE){
+                    if(pickedCard == null){
+                        makeToast("No card selected");
+                        resetMidButtonText(true);
+                    }
+                    else if(pickedCard.getCost() > money){
+                        makeToast("too expensive");
+                        resetMidButtonText(true);
+                    }
+                    else if(pickedCard instanceof MajorEstablishment && myCity.contains((Establishment)pickedCard)){
+                        pickDialog.show();
+                        makeToast("A city may only contain one of each major establishment");
+                        resetMidButtonText(true);
+                    }
+                    else {
+                        resetMidButtonText(false);
+                        pickDialog = null;
+                        logic.selectCard(pickedCard, owner);
+                    }
+                }
+                else if(which == AlertDialog.BUTTON_NEUTRAL){
+                    Button b = (Button)findViewById(R.id.inGameMiddleButton);
+                    lastMidButtonText = b.getText().toString();
+                    b.setText(R.string.backToPick);
+                }
+                else if(which == AlertDialog.BUTTON_NEGATIVE){
+                    resetMidButtonText(false);
+                    pickDialog = null;
+                    logic.selectCard(null, null);
+                }
+                pickedCard = null;
+                owner = null;
+            }
+        };
+        Card[] cards = mergeCardArrays(market, myLandmarks, false);
+        String title = "Buy A Card    (money: "+money+')';
+        String pos = "ok";
+        String neg = "don't buy";
+        String neut = "view cities";
+        pickCardHelper(cards, lockInSelection, "market", title, pos, neg, neut);
+    }
+
+    @Override
+    public void pickCard(Landmark[]myLandmarks, String myName){
+        DialogInterface.OnClickListener lockInSelection = new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+                if(which == AlertDialog.BUTTON_POSITIVE){
+                    if(pickedCard == null) {
+                        makeToast("No card selected");
+                        resetMidButtonText(true);
+                    }
+                    else {
+                        resetMidButtonText(false);
+                        pickDialog = null;
+                        logic.selectCard(pickedCard, owner);
+                    }
+                }
+                else if(which == AlertDialog.BUTTON_NEUTRAL){
+                    Button b = (Button)findViewById(R.id.inGameMiddleButton);
+                    lastMidButtonText = b.getText().toString();
+                    b.setText(R.string.backToPick);
+                }
+                pickedCard = null;
+                owner = null;
+            }
+        };
+        Card[] cards = mergeCardArrays(null, myLandmarks, true);
+        String title = "Choose landmark to demolish";
+        String pos = "demo";
+        String neut = "view cities";
+        pickCardHelper(cards, lockInSelection, myName, title, pos, null, neut);
+    }
+
+    private void pickCardHelper(Card[] cards, DialogInterface.OnClickListener listener,
+                                String myName, String title, String positiveName,
+                                String negativeName, String neutralName){
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        ScrollView outerLayout = (ScrollView)getLayoutInflater().inflate(R.layout.pick_card, null);
+        LinearLayout layout = (LinearLayout)outerLayout.getChildAt(0);
+        layout.setGravity(Gravity.CENTER);
+        indexOfLastSelected = -1;
+
+        for(Card c : cards){
+            FrameLayout frame = new FrameLayout(this);
+            ImageButton button = new ImageButton(this);
+            addCardToFrame(frame, c, button, myName);
+            layout.addView(frame);
+        }
+
+        builder.setCancelable(false);
+        builder.setView(outerLayout);
+        if(title != null)
+            builder.setTitle(title);
+        if(positiveName != null)
+            builder.setPositiveButton(positiveName, listener);
+        if(negativeName != null)
+            builder.setNegativeButton(negativeName, listener);
+        if(neutralName != null)
+            builder.setNeutralButton(neutralName, listener);
+        pickDialog = builder.show();
+    }
+
     private void addCardToFrame(FrameLayout frame, Card card, ImageButton button, String playerName){
         View.OnClickListener listener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                LinearLayout layout = (LinearLayout)findViewById(R.id.pickCardLayout);
-                int index = layout.indexOfChild(v);
+                LinearLayout layout = (LinearLayout)pickDialog.findViewById(R.id.pickCardLayout);
+                if(layout == null)
+                    return;
+                int index = layout.indexOfChild((FrameLayout)v.getTag(R.id.frame));
                 ImageView border = new ImageView(getApplicationContext());
                 border.setScaleType(ImageView.ScaleType.FIT_CENTER);
                 border.setImageResource(R.drawable.selected_border);
                 //check if old index has a border and remove it if it does
-                if(indexOfLastSelectedCard >= 0 &&
-                        ((FrameLayout)layout.getChildAt(indexOfLastSelectedCard)).getChildCount() > 2)
-                    ((FrameLayout)layout.getChildAt(indexOfLastSelectedCard)).removeViewAt(2);
+                if(indexOfLastSelected >= 0 &&
+                        ((FrameLayout)layout.getChildAt(indexOfLastSelected)).getChildCount() > 2)
+                    ((FrameLayout)layout.getChildAt(indexOfLastSelected)).removeViewAt(2);
                 //add border to newly selected index
                 ((FrameLayout)layout.getChildAt(index)).addView(border);
-                owner = (String)v.getTag(0);
-                pickedCard = (Card)v.getTag(1);
-                indexOfLastSelectedCard = index;
+                owner = (String)v.getTag(R.id.cardOwner);
+                pickedCard = (Card)v.getTag(R.id.card);
+                indexOfLastSelected = index;
             }
         };
-        int width = LinearLayout.LayoutParams.MATCH_PARENT;
-        int height = (int)(1.4 * width);
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
+        int width = (int)(Resources.getSystem().getDisplayMetrics().widthPixels * .8);
+        int height = (int)(width * 1.4);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
         frame.setLayoutParams(params);
 
-        button.getLayoutParams().width = width;
-        button.getLayoutParams().height = height;
+        button.setLayoutParams(params);
         button.setBackgroundResource(card.getFullImageId());
         button.setImageResource(card.getNumRenovatedResId());
         button.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -396,105 +618,16 @@ public class InGame extends AppCompatActivity implements UI {
         ImageView foreground = new ImageView(this);
         foreground.setImageResource(card.getNumOwnedResId());
         frame.addView(foreground);
-        button.setTag(0, playerName);
-
+        button.setTag(R.id.cardOwner, playerName);
+        button.setTag(R.id.card, card);
+        button.setTag(R.id.frame, frame);
     }
 
     @Override
-    public void pickCard(Establishment[] market, Landmark[]myLandmarks, final int money, final ArraySet<Establishment> myCity) {
-        this.money = money;
-        LinearLayout layout = (LinearLayout)findViewById(R.id.pickCardLayout);
-        indexOfLastSelectedCard = -1;
-        Card[] cards = mergeCardArrays(market, myLandmarks);
-
-        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        DialogInterface.OnClickListener lockInSelection = new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-                if(which == AlertDialog.BUTTON_POSITIVE){
-                    if(pickedCard == null || pickedCard.getCost() >= money || (pickedCard instanceof MajorEstablishment && myCity.contains((Establishment)pickedCard)))
-                        pickDialog.show();
-                    else {
-                        logic.selectCard(pickedCard, owner);
-                        pickDialog = null;
-                    }
-                }
-                else if(which == AlertDialog.BUTTON_NEUTRAL){
-                    Button b = (Button)findViewById(R.id.inGameMiddleButton);
-                    b.setText(R.string.backToPick);
-                }
-                else if(which == AlertDialog.BUTTON_NEGATIVE){
-                    logic.selectCard(null, null);
-                    pickDialog = null;
-                }
-                pickedCard = null;
-                owner = null;
-            }
-        };
-        builder.setPositiveButton("select", lockInSelection);
-        builder.setNeutralButton("view cities", lockInSelection);
-        builder.setNegativeButton("don't buy anything", lockInSelection);
-        builder.setTitle("Buy A Card");
-
-        for(Card c : cards){
-            FrameLayout frame = new FrameLayout(this);
-            ImageButton button = new ImageButton(this);
-            addCardToFrame(frame, c, button, "market");
-            button.setTag(1, c);
-            layout.addView(frame);
-        }
-    }
-
-    @Override
-    public void pickCard(Landmark[]myLandmarks, String myName){
-        LinearLayout layout = (LinearLayout)findViewById(R.id.pickCardLayout);
-        indexOfLastSelectedCard = -1;
-        Card[] cards = (Card[])myLandmarks;
-
-        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        DialogInterface.OnClickListener lockInSelection = new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-                if(which == AlertDialog.BUTTON_POSITIVE){
-                    if(pickedCard == null)
-                        pickDialog.show();
-                    else {
-                        logic.selectCard(pickedCard, owner);
-                        pickDialog = null;
-                    }
-                }
-                else if(which == AlertDialog.BUTTON_NEUTRAL){
-                    Button b = (Button)findViewById(R.id.inGameMiddleButton);
-                    b.setText(R.string.backToPick);
-                }
-                else if(which == AlertDialog.BUTTON_NEGATIVE){
-                    logic.selectCard(null, null);
-                    pickDialog = null;
-                }
-                pickedCard = null;
-                owner = null;
-            }
-        };
-        builder.setPositiveButton("select", lockInSelection);
-        builder.setNeutralButton("view cities", lockInSelection);
-        builder.setNegativeButton("don't buy anything", lockInSelection);
-        builder.setTitle("Buy A Card");
-
-        for(Card c : cards){
-            FrameLayout frame = new FrameLayout(this);
-            ImageButton button = new ImageButton(this);
-            addCardToFrame(frame, c, button, "market");
-            button.setTag(1, c);
-            layout.addView(frame);
-        }
-    }
-
-    @Override
-    public void getTechChoice() {
+    public void getTechChoice(int currentInvestment) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Invest 1$ into your Tech Startup?");
+        builder.setMessage("You currently have $"+ currentInvestment+ " invested");
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
@@ -516,20 +649,15 @@ public class InGame extends AppCompatActivity implements UI {
     @Override
     public void askIfAddTwo(final int d1, final int d2) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Invest 1$ into your Tech Startup?");
+        builder.setTitle("Add 2 to your roll?");
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                if(which == DialogInterface.BUTTON_POSITIVE){
-                    dialog.dismiss();
-                    logic.replyToAddTwo(true, d1, d2);
-                }
-                else{
-                    dialog.dismiss();
-                    logic.replyToAddTwo(false, d1, d2);
-                }
+                dialog.dismiss();
+                logic.replyToAddTwo(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
             }
         };
+        builder.setCancelable(false);
         builder.setPositiveButton("yes", listener);
         builder.setNegativeButton("no", listener);
         builder.show();
@@ -539,33 +667,48 @@ public class InGame extends AppCompatActivity implements UI {
     public void askIfReroll(final int d1, final int d2) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Would you like to reroll?");
+        if(d2 != 0)
+            builder.setMessage("original roll: "+d1+", "+d2);
+        else
+            builder.setMessage("original roll: "+d1);
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                if(which == DialogInterface.BUTTON_POSITIVE){
-                    dialog.dismiss();
-                    logic.radioReply(true, d1, d2);
-                }
-                else{
-                    dialog.dismiss();
-                    logic.radioReply(false, d1, d2);
-                }
+                dialog.dismiss();
+                logic.radioReply(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
             }
         };
         builder.setPositiveButton("yes", listener);
         builder.setNegativeButton("no", listener);
+        builder.setCancelable(false);
         builder.show();
     }
 
-    private Card[] mergeCardArrays(Establishment[] market, Landmark[] landmarks){
-        Card[] cards = new Card[market.length + landmarks.length-1];
+    private Card[] mergeCardArrays(Establishment[] market, Landmark[] landmarks, boolean useConstructedLandmarks){
+        int landmarksSize = 0;
+        for(int i = 1; i < landmarks.length; i++){
+            Landmark card = landmarks[i];
+            if(useConstructedLandmarks && card.getNumAvailable() == 1 || card.getNumAvailable() == 0 && !useConstructedLandmarks)
+                landmarksSize++;
+        }
+        int marketLength = 0;
+        if(market != null)
+            marketLength = market.length;
+        Card[] cards = new Card[marketLength + landmarksSize];
         int i = 0;
-        for(Card card : market){
-            cards[i] = card;
-            i++;
+
+        if(market != null) {
+            for (Card card : market) {
+                cards[i] = card;
+                i++;
+            }
         }
         for(int j = 1; j < landmarks.length; j++){
-            cards[i] = (Card)landmarks[i];
+            Landmark card = landmarks[j];
+            if(useConstructedLandmarks && card.getNumAvailable() == 1 || card.getNumAvailable() == 0 && !useConstructedLandmarks) {
+                cards[i] = (Card) card;
+                i++;
+            }
         }
         return cards;
     }
@@ -576,10 +719,12 @@ public class InGame extends AppCompatActivity implements UI {
         Arrays.sort(landmarks);
         ((TextView)findViewById(R.id.townName)).setText(townName);
         changeMoney(money);
-        if(myTown)
-            ((Button)findViewById(R.id.inGameMiddleButton)).setText(R.string.toMarketplace);
-        else
-            ((Button)findViewById(R.id.inGameMiddleButton)).setText(R.string.backToOwnCity);
+        if(pickDialog == null) {
+            if (myTown)
+                ((Button) findViewById(R.id.inGameMiddleButton)).setText(R.string.toMarketplace);
+            else
+                ((Button) findViewById(R.id.inGameMiddleButton)).setText(R.string.backToOwnCity);
+        }
         displayLandmarkIcons(landmarks);
         displayEstablishmentIcons(cityCards);
     }
@@ -590,14 +735,13 @@ public class InGame extends AppCompatActivity implements UI {
             ImageButton button = (ImageButton)landmarkLayout.getChildAt(i);
             button.setBackgroundResource(landmarks[i].getGridImageId());
             button.setImageResource(landmarks[i].getNumRenovatedResId());
-            //TODO set onClickListener to display full card
+            button.setTag(landmarks[i].getFullImageId());
         }
     }
     private void displayEstablishmentIcons(Establishment[] establishments){
         GridLayout grid = (GridLayout)findViewById(R.id.establishmentGrid);
         grid.setColumnCount(4);
         FrameLayout frame;
-        //TODO this nothing here shows up: even setting a background for the grid doesnt work
         //first clears all views set by previous city visited
         for(int i = 0; i < grid.getChildCount(); i++){
             frame = (FrameLayout)grid.getChildAt(i);
@@ -621,13 +765,7 @@ public class InGame extends AppCompatActivity implements UI {
             //num renovated
             button.setImageResource(e.getNumRenovatedResId());
             button.setLayoutParams(params);
-            button.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    //the buttons have tags set to their larger image ID
-                    displayCard((int)v.getTag());
-                }
-            });
+            button.setOnClickListener(cardClickListener);
             //num owned
             ImageView foreground = new ImageView(this);
             foreground.setImageResource(e.getNumOwnedResId());
@@ -636,34 +774,66 @@ public class InGame extends AppCompatActivity implements UI {
             //almost forgot to add the views to the frame
             frame.addView(button);
             frame.addView(foreground);
+
+            if(e.equals(new TechStartup())){
+                int investment = ((TechStartup)e).getValue();
+                TextView tv = new TextView(this);
+                tv.setText("invesement: "+investment);
+                tv.setGravity(Gravity.BOTTOM | Gravity.END);
+                tv.setTextColor(Color.BLACK);
+                frame.addView(tv);
+            }
             frame.setVisibility(View.VISIBLE);
         }
     }
 
-    @Override
-    public void displayCard(CardDisplayable card) {
-        displayCard(card.getFullImageId());
-    }
-
     private void displayCard(int imageID){
-        PopupWindow popup = new PopupWindow(getApplicationContext());
+        popup = new PopupWindow(this);
+        View rootLayout = findViewById(R.id.activeScreen);
         //I check both height and width since I want to make sure the whole image fits in the screen
-        int height = ViewGroup.LayoutParams.MATCH_PARENT;
-        int width = ViewGroup.LayoutParams.MATCH_PARENT;
+        int height = rootLayout.getHeight();
+        int width = rootLayout.getWidth();
         if(height < 1.4 * width)
             width = (int)(.714 * height);
         else if(height > 1.4 * width)
             height = (int)(1.4 * width);
-        ImageView v = new ImageView(getApplicationContext());
         popup.setHeight(height);
         popup.setWidth(width);
-        v.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        v.setImageResource(imageID);
-        popup.showAtLocation(getCurrentFocus(), Gravity.CENTER, 0, 0);
+        popup.setBackgroundDrawable(getDrawable(R.drawable.background));
+        ImageButton b = new ImageButton(this);
+
+        b.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        b.setImageResource(imageID);
+        b.setBackgroundColor(Color.TRANSPARENT);
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(popup != null)
+                    popup.dismiss();
+                popup = null;
+                showArrowBar();
+            }
+        });
+        popup.setContentView(b);
+        hideArrowBar();
+        popup.showAtLocation(rootLayout, Gravity.CENTER|Gravity.TOP, 0, 0);
+    }
+
+    private void hideArrowBar(){
+        RelativeLayout arrowBar = (RelativeLayout)findViewById(R.id.arrowBar);
+        for(int i = 0; i < arrowBar.getChildCount(); i++){
+            arrowBar.getChildAt(i).setVisibility(View.GONE);
+        }
+    }
+    private void showArrowBar(){
+        RelativeLayout arrowBar = (RelativeLayout)findViewById(R.id.arrowBar);
+        for(int i = 0; i < arrowBar.getChildCount(); i++){
+            arrowBar.getChildAt(i).setVisibility(View.VISIBLE);
+        }
     }
 
     @Override
-    public void sendMessage(String data, int indexToSkip, int indexToSendTo) {
+    public void sendMessage(String data, int indexToSendTo, int indexToSkip) {
         mBoundService.sendData(data, indexToSendTo, indexToSkip);
     }
 

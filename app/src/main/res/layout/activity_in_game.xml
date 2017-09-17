@@ -5,69 +5,6 @@
     android:layout_height="match_parent"
     android:background="@drawable/background"
     android:id="@+id/inGameLayout">
-    <LinearLayout
-        android:id="@+id/landmarkBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        style="?android:attr/buttonBarStyle">
-        <ImageButton
-            android:id="@+id/cityHallButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="?android:attr/buttonBarButtonStyle" />
-        <ImageButton
-            android:id="@+id/harborButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="?android:attr/buttonBarButtonStyle" />
-        <ImageButton
-            android:id="@+id/trainStationButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="?android:attr/buttonBarButtonStyle" />
-        <ImageButton
-            android:id="@+id/shoppingMallButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="?android:attr/buttonBarButtonStyle" />
-        <ImageButton
-            android:id="@+id/amusementParkButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="?android:attr/buttonBarButtonStyle" />
-        <ImageButton
-            android:id="@+id/radioTowerButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="?android:attr/buttonBarButtonStyle" />
-        <ImageButton
-            android:id="@+id/airportButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="?android:attr/buttonBarButtonStyle" />
-    </LinearLayout>
-
-    <ScrollView
-        android:id="@+id/townScroll"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/landmarkBar"
-        android:layout_above="@+id/arrowBar">
-        <GridLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:columnCount="4"
-            android:id="@+id/establishmentGrid"
-            android:layout_gravity="fill_horizontal">
-        </GridLayout>
-    </ScrollView>
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -98,30 +35,102 @@
     </RelativeLayout>
 
     <RelativeLayout
-        android:id="@+id/arrowBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_above="@id/infoBar">
-        <Button
-            android:id="@+id/prevTown"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/infoBar"
+        android:id="@+id/activeScreen">
+
+        <LinearLayout
+            android:id="@+id/landmarkBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            style="?android:attr/buttonBarStyle">
+            <ImageButton
+                android:id="@+id/cityHallButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                style="?android:attr/buttonBarButtonStyle" />
+            <ImageButton
+                android:id="@+id/harborButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                style="?android:attr/buttonBarButtonStyle" />
+            <ImageButton
+                android:id="@+id/trainStationButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                style="?android:attr/buttonBarButtonStyle" />
+            <ImageButton
+                android:id="@+id/shoppingMallButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                style="?android:attr/buttonBarButtonStyle" />
+            <ImageButton
+                android:id="@+id/amusementParkButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                style="?android:attr/buttonBarButtonStyle" />
+            <ImageButton
+                android:id="@+id/radioTowerButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                style="?android:attr/buttonBarButtonStyle" />
+            <ImageButton
+                android:id="@+id/airportButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                style="?android:attr/buttonBarButtonStyle" />
+        </LinearLayout>
+
+        <ScrollView
+            android:id="@+id/townScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/landmarkBar"
+            android:layout_above="@+id/arrowBar">
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="4"
+                android:id="@+id/establishmentGrid"
+                android:layout_gravity="fill_horizontal">
+            </GridLayout>
+        </ScrollView>
+
+        <RelativeLayout
+            android:id="@+id/arrowBar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:text="@string/prevTown"
-            android:onClick="visitTown"/>
-        <Button
-            android:id="@+id/inGameMiddleButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:onClick="middleButton"/>
-        <Button
-            android:id="@+id/nextTown"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:text="@string/nextTown"
-            android:onClick="visitTown"/>
+            android:layout_alignParentBottom="true">
+            <Button
+                android:id="@+id/prevTown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
+                android:text="@string/prevTown"
+                android:onClick="visitTown"/>
+            <Button
+                android:id="@+id/inGameMiddleButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:onClick="middleButton"/>
+            <Button
+                android:id="@+id/nextTown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:text="@string/nextTown"
+                android:onClick="visitTown"/>
+        </RelativeLayout>
+
     </RelativeLayout>
 
 </RelativeLayout>

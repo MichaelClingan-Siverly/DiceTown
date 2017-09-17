@@ -79,18 +79,11 @@ class ActivationVisitor implements CardVisitor {
         if(activeIndex == myIndex)
             myTurn = true;
         //don't count cityHall as a constructed landmark
-        for(int i = 1; i < players[myPlayerOrder].getLandmarks().length; i++){
-            if(players[myPlayerOrder].getLandmarks()[i].getNumAvailable() > 0)
-                myConstructedLandmarks++;
-        }
+        myConstructedLandmarks = players[myPlayerOrder].getNumConstructedLandmarks();
         if(myTurn)
             activesConstructedLandmarks = myConstructedLandmarks;
-        else{
-            for(int i = 1; i < players[activePlayerOrder].getLandmarks().length; i++){
-                if(players[activePlayerOrder].getLandmarks()[i].getNumAvailable() > 0)
-                    activesConstructedLandmarks++;
-            }
-        }
+        else
+            activesConstructedLandmarks = players[activePlayerOrder].getNumConstructedLandmarks();
     }
 
     @Override
@@ -178,18 +171,18 @@ class ActivationVisitor implements CardVisitor {
     @Override
     public Integer visit(CheeseFactory cheeseFactory) {
         if(myTurn && roll == 7 && activationCode == ACTIVATE_INDUSTRY){
-            int index = players[myIndex].getCitySet().indexOf(new Ranch());
-            int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
-            int total = cheeseFactory.getNumAvailable() * (3 * numCopies);
+            int total = cheeseFactory.getNumAvailable() * 3 * getNumLivestock(players[myIndex]);
             cheeseFactory.finishRenovation();
             return total;
         }
         else if(activationCode == FORCE_ACTIVATE){
-            int index = players[myIndex].getCitySet().indexOf(new Ranch());
-            int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
-            return 3 * numCopies;
+            return 3 * getNumLivestock(players[myIndex]);
         }
         return 0;
+    }
+
+    private int getNumLivestock(Player p){
+        return p.checkIfCardOwned(new Ranch());
     }
 
     @Override
@@ -348,24 +341,21 @@ class ActivationVisitor implements CardVisitor {
     @Override
     public Integer visit(FurnitureFactory factory) {
         if(myTurn && roll == 8 && activationCode == ACTIVATE_INDUSTRY){
-            int index = players[myIndex].getCitySet().indexOf(new Forest());
-            int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
-            int subtotal = factory.getNumAvailable() * (3 * numCopies);
-            index = players[myIndex].getCitySet().indexOf(new Mine());
-            numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
-            int total = subtotal + (factory.getNumAvailable() * (3 * numCopies));
+            int total = getNumNaturalResources(players[myIndex]) * factory.getNumAvailable() * 3;
             factory.finishRenovation();
             return total;
         }
         else if(activationCode == FORCE_ACTIVATE){
-            int index = players[myIndex].getCitySet().indexOf(new Forest());
-            int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
-            int subtotal = 3 * numCopies;
-            index = players[myIndex].getCitySet().indexOf(new Mine());
-            numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
-            return subtotal + 3 * numCopies;
+            return 3 * getNumNaturalResources(players[myIndex]) * factory.getNumAvailable() * 3;
         }
         return 0;
+    }
+
+    private int getNumNaturalResources(Player p){
+        int total = 0;
+        total += p.checkIfCardOwned(new Mine());
+        total += p.checkIfCardOwned(new Forest());
+        return total;
     }
 
     @Override
@@ -391,12 +381,12 @@ class ActivationVisitor implements CardVisitor {
     public Integer visit(LoanOffice loanOffice) {
         if(myTurn && (roll == 5 || roll == 6) && activationCode == ACTIVATE_INDUSTRY){
             int money = players[myIndex].getMoney();
-            int total = Math.max(0, money - 2*loanOffice.getNumAvailable());
+            int total = Math.min(money, 2*loanOffice.getNumAvailable());
             loanOffice.finishRenovation();
-            return total;
+            return -total;
         }
         else if(activationCode == FORCE_ACTIVATE){
-            return Math.max(0, players[myIndex].getMoney() - 2);
+            return -Math.min(players[myIndex].getMoney(), 2);
         }
         return 0;
     }
@@ -456,24 +446,25 @@ class ActivationVisitor implements CardVisitor {
     @Override
     public Integer visit(ProduceMarket market) {
         if(myTurn && (roll == 11 || roll == 12)){
-            int total = 0;
-            for(Establishment e : players[myIndex].getCity()){
-                if(e instanceof Crop)
-                    total+= e.getNumCopies();
-            }
+            int total = getNumCrops(players[myIndex]);
             total = total * 2 * market.getNumAvailable();
             market.finishRenovation();
             return total;
         }
         else if(activationCode == FORCE_ACTIVATE){
-            int total = 0;
-            for(Establishment e : players[myIndex].getCity()){
-                if(e instanceof Crop)
-                    total+= e.getNumCopies();
-            }
+            int total = getNumCrops(players[myIndex]);
             return total * 2;
         }
         return 0;
+    }
+    private int getNumCrops(Player p){
+        int total = 0;
+        total += p.checkIfCardOwned(new AppleOrchard());
+        total += p.checkIfCardOwned(new Vineyard());
+        total += p.checkIfCardOwned(new FlowerOrchard());
+        total += p.checkIfCardOwned(new CornField());
+        total += p.checkIfCardOwned(new WheatField());
+        return total;
     }
 
     @Override
@@ -572,8 +563,7 @@ class ActivationVisitor implements CardVisitor {
     @Override
     public Integer visit(Winery winery) {
         if(myTurn && roll == 9){
-            int index = players[myIndex].getCitySet().indexOf(new Vineyard());
-            int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
+            int numCopies = players[myIndex].checkIfCardOwned(new Vineyard());
             int numToRenovate = winery.getNumAvailable();
             int total = numToRenovate * (6 * numCopies);
             numCopies = winery.getNumCopies();
@@ -589,8 +579,7 @@ class ActivationVisitor implements CardVisitor {
             return total;
         }
         else if(activationCode == FORCE_ACTIVATE){
-            int index = players[myIndex].getCitySet().indexOf(new Vineyard());
-            int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
+            int numCopies = players[myIndex].checkIfCardOwned(new Vineyard());
             int numWineries = winery.getNumCopies();
             int numBeingRenovated = numWineries - winery.getNumAvailable() + 1;
 

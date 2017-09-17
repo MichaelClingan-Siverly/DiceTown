@@ -126,21 +126,23 @@ class GameClientConnection {
                 synchronized(lock){
                     s = sockets.get(index);
                 }
-                if(s != null) {
-                    try {
-                        if(android.os.Debug.isDebuggerConnected())
+                try {
+                    if (s != null && s.getInputStream().available() > 0) {
+                        if (android.os.Debug.isDebuggerConnected())
                             android.os.Debug.waitForDebugger();
-                        synchronized(s.getInputStream()) {
-                            while (s.getInputStream().available() > 0) {
-                                Log.d("readData", "reading from index "+index);
-                                BufferedReader reader = new BufferedReader(new InputStreamReader(s.getInputStream()));
-                                String line = reader.readLine();
+                        synchronized (s.getInputStream()) {
+                            Log.d("readData", "reading from index " + index);
+                            BufferedReader reader = new BufferedReader(new InputStreamReader(s.getInputStream()));
+                            String line;
+                            while (reader.ready()) {
+                                line = reader.readLine();
                                 mHandler.sendMessage(Message.obtain(null, SocketService.MSG_INCOMING_DATA, index, -1, line));
                             }
                         }
-                    } catch (IOException e) {
-                        e.printStackTrace();
                     }
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
                 }
                 //don't close the reader, since it will close the inputStream
                 readData(index);

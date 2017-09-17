@@ -53,6 +53,7 @@ public class GameLogic implements HandlesLogic {
     private final int SELECT_RENO = 7;
     private final int SELECT_DEMO = 8;
     private final int SELECT_CONVENTION = 9;
+    private final int NOT_REROLL = 0;
     private int selectCardCode;
     private int numCardsToPick = 0;
     private int originalRoll = 0;
@@ -60,36 +61,39 @@ public class GameLogic implements HandlesLogic {
     private Card tradeMeForSelected = null;
     private boolean activateForConvention = false;
     private boolean rolledDoubles = false;
-    private boolean radioRerollAvailable = true;
+    private boolean radioRerollAvailable = false;
 
     public GameLogic(UI ui, Player[] players, int myPlayerOrder){
         this.ui = ui;
         this.players = players;
         this.myPlayerOrder = myPlayerOrder;
+
         market = new ArraySet<>(10);
-        //host waits for players to join the game and the
+        //host waits for players to join the game
         if(myPlayerOrder == 0) {
             playersInGame++;
             //tell clients to begin game after host is in to ensure that clients wont join first
-            //TODO uncomment this
-//            ui.sendMessage("BG:0", -1, -1);
-            ui.makeToast("Building the market...");
+            ui.sendMessage("BG:0", -1, -1);
             deck = new Deck(players.length);
         }
         else
             ui.sendMessage(IN_GAME+":"+myPlayerOrder, 0, -1);
+
         Player me = players[myPlayerOrder];
         townIndexBeingShown = myPlayerOrder;
         ui.displayTown(me.getName(), me.getMoney(), me.getCity(), me.getLandmarks(), true);
     }
 
-    //host will have to tell other players what cards are drawn from the deck
+    //like the physical game, there is a chance that the initial market will have lots of 2-dice cards...
     private void addToMarket(){
         while(true){
             Establishment card = deck.draw();
+            if(card == null)
+                return;
+
             addToMarket(card);
             ui.sendMessage(ADD_TO_MARKET+":"+ card.getCode(), -1, -1);
-            if(market.size() == 10)
+            if(market.size() == 10 || deck.isEmpty())
                 return;
         }
     }
@@ -104,58 +108,79 @@ public class GameLogic implements HandlesLogic {
             market.add(card);
     }
 
-    private void beginTurnDiceRoll(){
-        beginTurnRoll = true;
-        boolean trainAvailable = players[myPlayerOrder].checkIfCardAvailable(new TrainStation());
-        ui.getDiceRoll(trainAvailable, false);
+    private void removeFromMarket(Establishment card){
+        if(market.contains(card)){
+            int index = market.indexOf(card);
+            Establishment e = market.valueAt(index);
+            if(e.getNumCopies() > 1)
+                e.removeCopy();
+            else {
+                market.removeAt(index);
+                if(myPlayerOrder == 0)
+                    addToMarket();
+            }
+        }
     }
 
-    private void resetIndicators(){
+    private void beginTurnDiceRoll(int prevNumDice){
+        resetIndicators(prevNumDice);
+        boolean trainAvailable = players[myPlayerOrder].checkIfCardAvailable(new TrainStation());
+        ui.getDiceRoll(trainAvailable, false, prevNumDice);
+    }
+
+    private void resetIndicators(int prevNumDice){
         numCardsToPick = 0;
         originalRoll = 0;
         selectedCard = null;
         tradeMeForSelected = null;
         activateForConvention = false;
         rolledDoubles = false;
-        beginTurnRoll = false;
-        radioRerollAvailable = players[activePlayer].checkIfCardAvailable(new RadioTower());
+        beginTurnRoll = true;
+        radioRerollAvailable = players[activePlayer].checkIfCardAvailable(new RadioTower()) && !(prevNumDice == 1 || prevNumDice == 2);
     }
 
     @Override
     public void diceRolled(int d1, int d2) {
-        if (beginTurnRoll) {
-            beginTurnRoll = false;
-            if(d1 == d2)
-                rolledDoubles = true;
-            if(radioRerollAvailable){
-                radioRerollAvailable = false;
-                ui.askIfReroll(d1, d2);
+        if(activePlayer == myPlayerOrder) {
+            if (beginTurnRoll) {
+                beginTurnRoll = false;
+                if (d1 == d2)
+                    rolledDoubles = true;
+                if (radioRerollAvailable) {
+                    radioRerollAvailable = false;
+                    ui.askIfReroll(d1, d2);
+                } else
+                    radioReply(false, d1, d2);
             }
-            else
-                radioReply(false, d1, d2);
-
-        }
-        else {
-            ui.sendMessage(TUNA_REPLY + ":" + d1 + ":d2:" + d2, -1, -1);
-            if(myPlayerOrder == 0){
-                if(activateForConvention){
-                    if(players[activePlayer].checkIfCardAvailable(new Harbor())){
-                        players[activePlayer].makeMoney(d1+d2);
-                        beginEndOfTurn();
-                    }
+            else {
+                ui.sendMessage(TUNA_REPLY + ":" + d1 + ":d2:" + d2, -1, -1);
+                if (myPlayerOrder == 0) {
+                    processTunaRoll(d1+d2);
                 }
-                else
-                    continueIndustry(d1+d2);
             }
-
         }
         //wait for everyone's activations to finish if this is for a normal roll
+    }
+
+    private void processTunaRoll(int value){
+        if(activateForConvention ){
+            if(players[activePlayer].checkIfCardAvailable(new Harbor())){
+                players[activePlayer].makeMoney(value);
+                moneyStuff(activePlayer, value, false);
+            }
+            beginEndOfTurn();
+        }
+        else{
+            continueIndustry(value);
+        }
     }
 
     @Override
     public void radioReply(boolean reroll, int d1, int d2){
         if(reroll){
-            beginTurnDiceRoll();
+            ui.sendMessage(INFORM_OF_REROLL+":"+myPlayerOrder, -1, -1);
+            int numDice = d2 != 0 ? 2 : 1;
+            beginTurnDiceRoll(numDice);
         }
         else if(d1+d2 >= 10 && players[activePlayer].checkIfCardAvailable(new Harbor())){
             ui.askIfAddTwo(d1, d2);
@@ -186,18 +211,19 @@ public class GameLogic implements HandlesLogic {
         if(myPlayerOrder == 0){
             int[] moneyOwed = getRestaurantMoneyOwed();
             int index = activePlayer;
+            index = index-1 >= 0 ? index-1 : players.length-1;
             int totalPaid = 0;
-            for(int i : moneyOwed){
-                index = index-1 >= 0 ? index-1 : players.length-1;
-                if(i != activePlayer && moneyOwed[index] > 0){
+            while(index != activePlayer){
+                if(moneyOwed[index] > 0){
                     int moneyPaid = players[activePlayer].loseMoney(moneyOwed[index]);
                     totalPaid += moneyPaid;
                     players[index].makeMoney(moneyPaid);
-                    ui.sendMessage(GAIN_MONEY+":p"+index+"$:"+moneyPaid, -1, -1);
+                    moneyStuff(index, moneyPaid, false);
                 }
+                index = index-1 >= 0 ? index-1 : players.length-1;
             }
-            players[activePlayer].loseMoney(totalPaid);
-            ui.sendMessage(LOSE_MONEY+":p"+activePlayer+"$:"+totalPaid, -1, -1);
+            if(totalPaid > 0)
+                moneyStuff(activePlayer, totalPaid, true);
             activateIndustry();
         }
     }
@@ -222,7 +248,7 @@ public class GameLogic implements HandlesLogic {
         if(myPlayerOrder == 0){
             if(tunaBoatActivated(originalRoll)){
                 if(activePlayer == myPlayerOrder){
-                    ui.getDiceRoll(false, true);
+                    ui.getDiceRoll(false, true, -1);
                 }
                 else{
                     ui.sendMessage(NEED_TUNA_ROLL+":0", activePlayer, -1);
@@ -237,7 +263,13 @@ public class GameLogic implements HandlesLogic {
         int moneyGained[] = getIndustryMoneyGained(tunaRoll);
         for(int i = 0; i < moneyGained.length; i++){
             players[i].makeMoney(moneyGained[i]);
-            ui.sendMessage(GAIN_MONEY+":p"+i+"$:"+moneyGained[i], -1, -1);
+            if(moneyGained[i] != 0) {
+                moneyStuff(i, moneyGained[i], false);
+                if(i == townIndexBeingShown){
+                    Player p = players[i];
+                    ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), i == myPlayerOrder);
+                }
+            }
         }
         //check if roll would activate a movingCompany: this does not activate on same roll as loan office, so I just let it always go last
         if((originalRoll == 9 || originalRoll == 10) && players[activePlayer].checkIfCardAvailable(new MovingCompany())){
@@ -253,16 +285,16 @@ public class GameLogic implements HandlesLogic {
             Establishment card = players[activePlayer].getCitySet().valueAt(index);
             selectCardCode = SELECT_DEMO;
             numCardsToPick = card.getNumAvailable();
-            int numConstructedLandmarks = 0;
-            for(int i = 1; i < players[activePlayer].getLandmarks().length; i++){
-                if(players[activePlayer].getLandmarks()[i].getNumAvailable() > 0)
-                    numConstructedLandmarks++;
-            }
+            int numConstructedLandmarks = players[activePlayer].getNumConstructedLandmarks();
             numCardsToPick = Math.min(numCardsToPick, numConstructedLandmarks);
-            if(myPlayerOrder == activePlayer)
-                activateDemoCompany();
+            if(numCardsToPick > 0) {
+                if (myPlayerOrder == activePlayer)
+                    activateDemoCompany();
+                else
+                    ui.sendMessage(REQUEST_ACTIVATE_DEMO + ":" + numCardsToPick, activePlayer, -1);
+            }
             else
-                ui.sendMessage(REQUEST_ACTIVATE_DEMO+":"+numCardsToPick, activePlayer, -1);
+                activateMajorEstablishments();
         }
         else
             activateMajorEstablishments();
@@ -289,11 +321,8 @@ public class GameLogic implements HandlesLogic {
     private boolean tunaBoatActivated(int diceTotal){
         if(diceTotal >= 12) {
             for (Player p : players) {
-                if (p.getCitySet().contains(new TunaBoat())) {
-                    int i = p.getCitySet().indexOf(new TunaBoat());
-                    if (p.getCitySet().valueAt(i).getNumAvailable() > 0)
-                        return true;
-                }
+                if(p.checkIfCardAvailable(new TunaBoat()))
+                    return true;
             }
         }
         return false;
@@ -305,7 +334,7 @@ public class GameLogic implements HandlesLogic {
         if(numCardsToPick > 0 && activePlayer == myPlayerOrder){
             Player[] pArray = new Player[1];
             pArray[0] = players[myPlayerOrder];
-            ui.pickCard(pArray, players[myPlayerOrder].getName(), true);
+            ui.pickCard(pArray, players[myPlayerOrder].getName(), "Moving Company", true);
         }
         else if(myPlayerOrder == 0){
             if(activateForConvention) {
@@ -315,8 +344,6 @@ public class GameLogic implements HandlesLogic {
             else
                 activateMajorEstablishments();
         }
-        if(activateForConvention)
-            activateForConvention = false;
     }
 
     //helpful to remember that major establishments can not be renovated, so I don't have to check
@@ -334,16 +361,17 @@ public class GameLogic implements HandlesLogic {
                     if(i != activePlayer) {
                         moneyOwedToMe = players[i].loseMoney(2);
                         totalGained += moneyOwedToMe;
-                        ui.sendMessage(LOSE_MONEY+":p"+i+"$:"+moneyOwedToMe, -1, -1);
+                        moneyStuff(i, moneyOwedToMe, true);
                     }
                 }
-                ui.sendMessage(GAIN_MONEY+":p"+activePlayer+"$:"+totalGained, -1, -1);
+                players[activePlayer].makeMoney(totalGained);
+                moneyStuff(activePlayer, totalGained, false);
             }
             //takes coins from a chosen player
             if(players[activePlayer].getCitySet().contains(new TvStation())){
                 selectCardCode = SELECT_PLAYER_TV;
                 if(activePlayer == myPlayerOrder)
-                    ui.pickPlayer(players, activePlayer);
+                    ui.pickPlayer(players, activePlayer, "pick player for TV Station");
                 else
                     ui.sendMessage(REQUEST_TV_STATION+":0", activePlayer, -1);
             }
@@ -361,35 +389,42 @@ public class GameLogic implements HandlesLogic {
                     ui.sendMessage(REQUEST_RENO+":0", activePlayer, -1);
                 else {
                     selectCardCode = SELECT_RENO;
-                    ui.pickCard(players, players[myPlayerOrder].getName(), true);
+                    ui.pickCard(players, players[myPlayerOrder].getName(), "Renovation Company", true);
                 }
+            }
+            else {
+                beginEndOfTurn();
             }
         }
         else if(originalRoll == 10){
             if(players[activePlayer].getCitySet().contains(new TechStartup())){
                 int index = players[activePlayer].getCitySet().indexOf(new TechStartup());
                 TechStartup startup = (TechStartup)players[activePlayer].getCitySet().valueAt(index);
-                int moneyGained = 0;
-                for(int i = 0; i < players.length; i++){
-                    if(i != activePlayer){
-                        int moneyLost = players[i].loseMoney(startup.getValue());
-                        ui.sendMessage(LOSE_MONEY+":p"+i+"$:"+moneyLost, -1, -1);
-                        moneyGained += moneyLost;
+                if(startup.getValue() > 0) {
+                    int moneyGained = 0;
+                    for (int i = 0; i < players.length; i++) {
+                        if (i != activePlayer) {
+                            int moneyLost = players[i].loseMoney(startup.getValue());
+                            moneyStuff(i, moneyLost, true);
+                            moneyGained += moneyLost;
+                        }
                     }
+                    players[activePlayer].makeMoney(moneyGained);
+                    moneyStuff(activePlayer, moneyGained, false);
                 }
-                ui.sendMessage(GAIN_MONEY+":p"+activePlayer+"$:"+moneyGained, -1, -1);
-                beginEndOfTurn();
             }
             if(players[activePlayer].getCitySet().contains(new ConventionCenter())){
                 selectCardCode = SELECT_CONVENTION;
                 if(activePlayer == 0 && myPlayerOrder == 0) {
                     activateForConvention = true;
                     Player[] me = new Player[]{players[activePlayer]};
-                    ui.pickCard(me, me[0].getName(), true);
+                    ui.pickCard(me, me[0].getName(), "Convention Center", true);
                 }
                 else
                     ui.sendMessage(REQUEST_CONVENTION+":0", activePlayer, -1);
             }
+            else
+                beginEndOfTurn();
         }
         else if(originalRoll >= 11 && originalRoll <= 13 && players[activePlayer].getCitySet().contains(new Park())){
             int totalMoney = 0;
@@ -404,10 +439,11 @@ public class GameLogic implements HandlesLogic {
             for(int i = 0; i < moneyLostPerPlayer.length; i++){
                 players[i].makeMoney(moneyToEachPlayer);
                 if(moneyToEachPlayer < moneyLostPerPlayer[i])
-                    ui.sendMessage(LOSE_MONEY+":p"+i+"$:"+(moneyLostPerPlayer[i] - moneyToEachPlayer), -1, -1);
+                    moneyStuff(i, moneyLostPerPlayer[i] - moneyToEachPlayer, true);
                 else if(moneyToEachPlayer > moneyLostPerPlayer[i])
-                    ui.sendMessage(GAIN_MONEY+":p"+i+"$:"+(moneyToEachPlayer - moneyLostPerPlayer[i]), -1, -1);
+                    moneyStuff(i, moneyToEachPlayer - moneyLostPerPlayer[i], false);
             }
+            beginEndOfTurn();
         }
         else{
             beginEndOfTurn();
@@ -420,11 +456,11 @@ public class GameLogic implements HandlesLogic {
             if(i != activePlayer && players[i].getMoney() >= 10){
                 int moneyLost = players[i].loseMoney(players[i].getMoney() / 2);
                 moneyGained += moneyLost;
-                ui.sendMessage(LOSE_MONEY+":p"+i+"$:"+moneyLost, -1, -1);
+                moneyStuff(i, moneyLost, true);
             }
         }
-        ui.sendMessage(LOSE_MONEY+":p"+activePlayer+"$:"+moneyGained, -1, -1);
-
+        players[activePlayer].makeMoney(moneyGained);
+        moneyStuff(activePlayer, moneyGained, false);
     }
 
     private void doPublisher(){
@@ -441,10 +477,11 @@ public class GameLogic implements HandlesLogic {
                 }
                 int moneyPaid = players[i].loseMoney(moneyOwed);
                 totalGained += moneyPaid;
-                ui.sendMessage(LOSE_MONEY+":p"+i+"$:"+moneyPaid, -1, -1);
+                moneyStuff(i, moneyPaid, true);
             }
         }
-        ui.sendMessage(GAIN_MONEY+":p"+activePlayer+"$:"+totalGained, -1, -1);
+        players[activePlayer].makeMoney(totalGained);
+        moneyStuff(activePlayer, totalGained, false);
         beginEndOfTurn();
     }
 
@@ -453,7 +490,7 @@ public class GameLogic implements HandlesLogic {
             if(activePlayer == 0 && myPlayerOrder == 0) {
                 selectCardCode = SELECT_BC_MINE;
                 Player[] p = new Player[]{players[0]};
-                ui.pickCard(p, p[0].getName(), true);
+                ui.pickCard(p, p[0].getName(), "Business Center: card to give", true);
             }
             else {
                 ui.sendMessage(REQUEST_TRADE_CARD+":0", activePlayer, -1);
@@ -466,48 +503,81 @@ public class GameLogic implements HandlesLogic {
 
     private void tradeCards(Player me, Establishment myCard, Player them, Establishment theirCard){
         int i;
-        if(me.getCitySet().contains(theirCard)) {
-            i = me.getCitySet().indexOf(theirCard);
-            if(theirCard.getNumCopies() > theirCard.getNumAvailable())
-                me.getCitySet().valueAt(i).addCopy();
-            else
-                me.getCitySet().valueAt(i).addRenovatedCopy();
+        //I want to take an unrenovated copy if there is one, unless their card is a loan office
+        if(!me.getCitySet().contains(theirCard)) {
+            Establishment e = (Establishment)Deck.getCardFromCode(theirCard.getCode());
+            if(e != null)
+                e.removeCopy();
+            me.getCitySet().add(e);
         }
-        else{
-            me.getCitySet().add(theirCard);
-        }
-        if(them.getCitySet().contains(myCard)){
-            i = them.getCitySet().indexOf(myCard);
-            if(myCard.getNumCopies() > myCard.getNumAvailable())
-                them.getCitySet().valueAt(i).addCopy();
-            else
-                them.getCitySet().valueAt(i).addRenovatedCopy();
-        }
+        i = me.getCitySet().indexOf(theirCard);
+        if(theirCard.getNumAvailable() > 0 && !theirCard.getCode().equals("LO"))
+            me.getCitySet().valueAt(i).addCopy();
         else
-            them.getCitySet().add(myCard);
+            me.getCitySet().valueAt(i).addRenovatedCopy();
 
-        i = me.getCitySet().indexOf(myCard);
-        me.getCitySet().valueAt(i).removeCopy();
-        i = them.getCitySet().indexOf(theirCard);
-        them.getCitySet().valueAt(i).removeCopy();
+        //I want to give a renovated copy if there is one, unless my card is a loan office
+        if(!them.getCitySet().contains(myCard)) {
+            Establishment e = (Establishment) Deck.getCardFromCode(myCard.getCode());
+            if (e != null)
+                e.removeCopy();
+            them.getCitySet().add(e);
+        }
+        i = them.getCitySet().indexOf(myCard);
+        if(myCard.getNumCopies() > myCard.getNumAvailable() && !myCard.getCode().equals("LO"))
+            them.getCitySet().valueAt(i).addRenovatedCopy();
+        else
+            them.getCitySet().valueAt(i).addCopy();
 
-        beginEndOfTurn();
+        me.removeCopyOfEstablishment(myCard, true);
+        them.removeCopyOfEstablishment(theirCard, false);
+
+        int meIndex;
+        for(meIndex = 0; meIndex < players.length; meIndex++){
+            if(players[meIndex].getName().equals(me.getName()))
+                break;
+        }
+        int themIndex;
+        for(themIndex = 0; themIndex < players.length; themIndex++){
+            if(players[themIndex].getName().equals(them.getName()))
+                break;
+        }
+
+        Player p = players[townIndexBeingShown];
+        if(townIndexBeingShown == meIndex || townIndexBeingShown == themIndex)
+            ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), myPlayerOrder == townIndexBeingShown);
+
+        if(myPlayerOrder == 0)
+            beginEndOfTurn();
     }
 
     private void finishReno(Establishment demoMe){
         int moneyGained = 0;
+        Player p;
         for(int i = 0; i < players.length; i++){
-            Player p = players[i];
+            p = players[i];
             if(p.getCitySet().contains(demoMe)){
                 int index = p.getCitySet().indexOf(demoMe);
-                if(activePlayer == i) {
-                    int moneyLost = p.loseMoney(p.getCitySet().valueAt(index).getNumAvailable());
+                int moneyLost = p.getCitySet().valueAt(index).getNumAvailable();
+                p.getCitySet().valueAt(index).closeForRenovation();
+                //renovation even closes the active player's establishments,
+                // but there is no point in making active lose money to themselves
+                if(activePlayer != i) {
+                    //I reuse moneyLost here. The only need to know how many were available is to see how much is owed
+                    moneyLost = p.loseMoney(moneyLost);
+                    if(townIndexBeingShown == i){
+                        p = players[townIndexBeingShown];
+                        ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+                    }
                     moneyGained += moneyLost;
                 }
-                p.getCitySet().valueAt(index).closeForRenovation();
             }
         }
         players[activePlayer].makeMoney(moneyGained);
+        if(townIndexBeingShown == activePlayer){
+            p = players[townIndexBeingShown];
+            ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+        }
         if(myPlayerOrder == 0){
             beginEndOfTurn();
         }
@@ -529,7 +599,6 @@ public class GameLogic implements HandlesLogic {
                     activateMovingCompany(1);
                 else
                     ui.sendMessage(REQUEST_ACTIVATE_MOVING+":"+numCardsToPick, activePlayer, -1);
-
             }
             else if(e.getCode().equals("DC")){
                 if(myPlayerOrder == activePlayer)
@@ -539,7 +608,7 @@ public class GameLogic implements HandlesLogic {
             }
             else if(e.getCode().equals("TB")){
                 if(activePlayer == myPlayerOrder){
-                    ui.getDiceRoll(false, true);
+                    ui.getDiceRoll(false, true, -1);
                 }
                 else{
                     ui.sendMessage(NEED_TUNA_ROLL+":0", activePlayer, -1);
@@ -549,10 +618,23 @@ public class GameLogic implements HandlesLogic {
                 ActivationVisitor visitor = new ActivationVisitor(0, players, activePlayer, activePlayer, ActivationVisitor.FORCE_ACTIVATE, 0);
                 int moneyGained = visitor.visit(e);
                 players[activePlayer].makeMoney(moneyGained);
-                ui.sendMessage(GAIN_MONEY+":p"+activePlayer+"$:"+moneyGained, -1, -1);
+                moneyStuff(activePlayer, moneyGained, false);
+                beginEndOfTurn();
             }
         }
-        beginEndOfTurn();
+    }
+
+    private void moneyStuff(int playerOrder, int amount, boolean loseMoney){
+        if(myPlayerOrder == 0) {
+            if (loseMoney)
+                ui.sendMessage(LOSE_MONEY + ":p" + playerOrder + ":$:" + amount, -1, -1);
+            else
+                ui.sendMessage(GAIN_MONEY + ":p" + playerOrder + ":$:" + amount, -1, -1);
+        }
+        if(townIndexBeingShown == playerOrder){
+            Player p = players[playerOrder];
+            ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+        }
     }
 
     //1st step of end of turn buy
@@ -561,43 +643,88 @@ public class GameLogic implements HandlesLogic {
         if(players[activePlayer].getMoney() == 0){
             players[activePlayer].makeMoney(1);
             ui.makeToast("Gaining money from City Hall");
-            ui.sendMessage(GAIN_MONEY+":p"+activePlayer+"$:1", -1, -1);
+            moneyStuff(activePlayer, 1, false);
         }
-        else{
-            checkTech();
+        if(myPlayerOrder == 0){
+            endOfTurnBuy();
         }
     }
 
     //2nd step of end of turn
+    private void endOfTurnBuy(){
+        selectCardCode = SELECT_BUY_CARD;
+        if(myPlayerOrder == activePlayer){
+            Player p = players[myPlayerOrder];
+            ui.pickCard(market.toArray(new Establishment[market.size()]), p.getLandmarks(), p.getMoney(), p.getCitySet());
+        }
+        else
+            ui.sendMessage(ADD_TO_CITY+":?", activePlayer, -1);
+    }
+
+    //3rd step of end of turn
     private void checkTech(){
         if(myPlayerOrder == 0) {
-            if(activePlayer == 0 && players[activePlayer].checkIfCardAvailable(new TechStartup()))
-                ui.getTechChoice();
+            int index;
+            if(activePlayer == 0 && 0 <= (index = players[activePlayer].getCitySet().indexOf(new TechStartup())))
+                ui.getTechChoice(((TechStartup)players[activePlayer].getCitySet().valueAt(index)).getValue());
             else if(players[activePlayer].getMoney() > 0 && players[activePlayer].checkIfCardAvailable(new TechStartup()))
-                ui.sendMessage(REQUEST_TECH_CHOICE, -1, activePlayer);
+                ui.sendMessage(REQUEST_TECH_CHOICE+":0", activePlayer, -1);
             else
                 checkAmusementPark();
         }
     }
 
-    //3rd step of end of turn
+    //4th step of end of turn
     @Override
     public void receiveTechChoice(boolean makeInvestment){
-        if(makeInvestment)
-            ui.sendMessage(REPLY_TECH_CHOICE+":y", -1, -1);
+        if(makeInvestment) {
+            ui.sendMessage(REPLY_TECH_CHOICE + ":y", -1, -1);
+            if(activePlayer == townIndexBeingShown) {
+                Player p = players[activePlayer];
+                int index = p.getCitySet().indexOf(new TechStartup());
+                if(index >= 0)
+                    ((TechStartup)p.getCitySet().valueAt(index)).addInvestment();
+                ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), activePlayer == myPlayerOrder);
+            }
+        }
         if(myPlayerOrder == 0)
             checkAmusementPark();
+        else
+            ui.sendMessage(REPLY_TECH_CHOICE + "n", -1, -1);
     }
 
-    //4th step of end of turn
+    //5th step of end of turn
     private void checkAmusementPark(){
-        resetIndicators();
+        //shouldn't have to tell anyone but the active player when a new player begins their turn
         if(players[activePlayer].checkIfCardAvailable(new AmusementPark()) && rolledDoubles){
+            resetIndicators(NOT_REROLL);
+            ui.sendMessage(BEGIN_TURN + ":" + activePlayer, -1, -1);
            if(activePlayer == 0)
-               beginTurnDiceRoll();
+               beginTurnDiceRoll(NOT_REROLL);
            else
-               ui.sendMessage(BEGIN_TURN+":"+activePlayer, -1, -1);
+               notifyOfNewActivePlayer(true);
         }
+        else{
+            activePlayer = (activePlayer+1) % players.length;
+            resetIndicators(NOT_REROLL);
+            ui.sendMessage(BEGIN_TURN + ":" + activePlayer, -1, -1);
+            if(activePlayer == 0)
+                beginTurnDiceRoll(NOT_REROLL);
+            else
+                notifyOfNewActivePlayer(false);
+        }
+    }
+
+    private void notifyOfNewActivePlayer(boolean sameAsLastTurn){
+        String nameWithSuffix = players[activePlayer].getName();
+        if(nameWithSuffix.endsWith("s") || nameWithSuffix.endsWith("z"))
+            nameWithSuffix = nameWithSuffix + '\'';
+        else
+            nameWithSuffix = nameWithSuffix+"'s";
+        if(sameAsLastTurn)
+            ui.makeToast(nameWithSuffix + " takes another turn");
+        else
+            ui.makeToast("It is " + nameWithSuffix + " turn");
     }
 
     @Override
@@ -605,11 +732,17 @@ public class GameLogic implements HandlesLogic {
         ArrayList<DataMapping> mappings = parseIncomingData(dataString);
         for(DataMapping map : mappings){
             switch(map.keyWord){
+                case INFORM_OF_REROLL:
+                    ui.makeToast(players[playerOrderWhoSentThis].getName() + " rerolled their dice");
+                    if(myPlayerOrder == 0)
+                        ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
+                    break;
                 case IN_GAME:
                     playersInGame++;
-                    if(playersInGame == players.length) {
+                    if(playersInGame == players.length && myPlayerOrder == 0) {
+                        ui.makeToast("Building the market...");
                         addToMarket();
-                        beginTurnDiceRoll();
+                        beginTurnDiceRoll(NOT_REROLL);
                     }
                     break;
                 case ADD_TO_MARKET:
@@ -617,10 +750,14 @@ public class GameLogic implements HandlesLogic {
                     addToMarket(c);
                     break;
                 case BEGIN_TURN:
-                    resetIndicators();
+                    resetIndicators(NOT_REROLL);
+                    int oldActivePlayer = activePlayer;
                     activePlayer = Integer.parseInt(map.value);
                     if(activePlayer == myPlayerOrder)
-                        beginTurnDiceRoll();
+                        beginTurnDiceRoll(NOT_REROLL);
+                    else {
+                        notifyOfNewActivePlayer(oldActivePlayer == activePlayer);
+                    }
                     break;
                 case TUNA_REPLY:
                     ui.makeToast("Rolling for Tuna Boat value");
@@ -650,15 +787,7 @@ public class GameLogic implements HandlesLogic {
                         }
                         else if(map.keyWord.equals(TUNA_REPLY)) {
                             ui.sendMessage(TUNA_REPLY + ":" + d1 + ":d2:" + d2, -1, playerOrderWhoSentThis);
-                            if(activateForConvention){
-                                if(players[activePlayer].checkIfCardAvailable(new Harbor())){
-                                    players[activePlayer].makeMoney(d1+d2);
-                                    beginEndOfTurn();
-                                }
-                            }
-                            else{
-                                continueIndustry(d1+d2);
-                            }
+                            processTunaRoll(d1+d2);
                         }
                     }
 
@@ -684,7 +813,7 @@ public class GameLogic implements HandlesLogic {
                     break;
                 case NEED_TUNA_ROLL:
                     if(myPlayerOrder != 0){
-                        ui.getDiceRoll(false, true);
+                        ui.getDiceRoll(false, true, 0);
                     }
                     break;
                 case REPLY_ACTIVATE_MOVING:
@@ -693,16 +822,13 @@ public class GameLogic implements HandlesLogic {
                     Player p = players[toPlayerOrder];
                     if(mappings.size() > index+1){
                         DataMapping nextMap = mappings.get(index+1);
-                            Establishment card = (Establishment)Deck.getCardFromCode(nextMap.value);
+                            Establishment card = (Establishment)Deck.getCardFromCode(nextMap.keyWord);
                             if(players[activePlayer].getCitySet().contains(card)){
-                                int i = players[activePlayer].getCitySet().indexOf(card);
-                                if(players[activePlayer].getCitySet().valueAt(i).getNumAvailable() < players[activePlayer].getCitySet().valueAt(i).getNumCopies())
-                                    card.closeForRenovation();
-                                players[activePlayer].getCitySet().valueAt(i).removeCopy();
+                                players[activePlayer].removeCopyOfEstablishment(card, true);
                             }
                             if(p.getCitySet().contains(card)){
                                 int i = p.getCitySet().indexOf(card);
-                                if(card.getNumAvailable() > 0)
+                                if(Integer.parseInt(nextMap.value) == 0)
                                     p.getCitySet().valueAt(i).addCopy();
                                 else
                                     p.getCitySet().valueAt(i).addRenovatedCopy();
@@ -724,7 +850,7 @@ public class GameLogic implements HandlesLogic {
                     break;
                 case REQUEST_TV_STATION:
                     selectCardCode = SELECT_PLAYER_TV;
-                    ui.pickPlayer(players, myPlayerOrder);
+                    ui.pickPlayer(players, myPlayerOrder, "pick player for TV Station");
                     break;
                 case REPLY_TV_STATION:
                     selectCardCode = 0;
@@ -732,10 +858,15 @@ public class GameLogic implements HandlesLogic {
                     int moneyGained = Integer.parseInt(map.value);
                     if(mappings.size() > index+1) {
                         DataMapping nextMap = mappings.get(index + 1);
-                        Player from = players[Integer.parseInt(nextMap.value)];
+                        int fromIndex = Integer.parseInt(nextMap.value);
+                        Player from = players[fromIndex];
                         Player to = players[activePlayer];
                         from.loseMoney(moneyGained);
                         to.makeMoney(moneyGained);
+                        if(townIndexBeingShown == activePlayer || townIndexBeingShown == fromIndex) {
+                            p = players[townIndexBeingShown];
+                            ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+                        }
                     }
                     if(myPlayerOrder == 0) {
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
@@ -745,7 +876,7 @@ public class GameLogic implements HandlesLogic {
                 case REQUEST_TRADE_CARD:
                     selectCardCode = SELECT_BC_MINE;
                     Player[] pArr = new Player[]{players[myPlayerOrder]};
-                    ui.pickCard(pArr, pArr[0].getName(), true);
+                    ui.pickCard(pArr, pArr[0].getName(), "Business Center: card to give", true);
                     break;
                 case REPLY_TRADE_CARD:
                     index = mappings.indexOf(map);
@@ -753,38 +884,25 @@ public class GameLogic implements HandlesLogic {
                         DataMapping nextMap = mappings.get(index + 1);
                         Player from = players[Integer.parseInt(nextMap.keyWord)];
                         String code = nextMap.value;
-                        boolean renovateIt = false;
-                        if(code.contains("r")) {
-                            renovateIt = true;
-                            code = code.substring(0, code.length()-2);
-                        }
                         Establishment mine = (Establishment)Deck.getCardFromCode(code);
-                        if(renovateIt) {
-                            renovateIt = false;
-                            mine.closeForRenovation();
-                        }
+                        int i = from.getCitySet().indexOf(mine);
+                        mine = from.getCitySet().valueAt(i);
 
                         nextMap = mappings.get(index+2);
                         Player to = players[Integer.parseInt(nextMap.keyWord)];
                         code = nextMap.value;
-                        if(code.contains("r")){
-                            renovateIt = true;
-                            code = code.substring(0, code.length()-2);
-                        }
                         Establishment theirs = (Establishment)Deck.getCardFromCode(code);
-                        if(renovateIt)
-                            theirs.closeForRenovation();
+                        i = to.getCitySet().indexOf(theirs);
+                        theirs = to.getCitySet().valueAt(i);
 
+                        if(myPlayerOrder == 0)
+                            ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                         tradeCards(from, mine, to, theirs);
-                    }
-                    if(myPlayerOrder == 0) {
-                        ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
-                        beginEndOfTurn();
                     }
                     break;
                 case REQUEST_RENO:
                     selectCardCode = SELECT_RENO;
-                    ui.pickCard(players, players[myPlayerOrder].getName(), true);
+                    ui.pickCard(players, players[myPlayerOrder].getName(), "Renovation Company", true);
                     break;
                 case REPLY_RENO:
                     selectCardCode = 0;
@@ -799,29 +917,32 @@ public class GameLogic implements HandlesLogic {
                     if(players[activePlayer].getCitySet().contains(new DemoCompany())){
                         index = players[activePlayer].getCitySet().indexOf(new DemoCompany());
                         Card card = players[activePlayer].getCitySet().valueAt(index);
-                        numCardsToPick = card.getNumAvailable();
-                        int numConstructedLandmarks = 0;
-                        for(int i = 1; i < players[activePlayer].getLandmarks().length; i++){
-                            if(players[activePlayer].getLandmarks()[i].getNumAvailable() > 0)
-                                numConstructedLandmarks++;
-                        }
+                        numCardsToPick = Math.min(card.getNumAvailable(), 1);
+                        int numConstructedLandmarks = players[activePlayer].getNumConstructedLandmarks();
                         numCardsToPick = Math.min(numCardsToPick, numConstructedLandmarks);
                         activateDemoCompany();
                     }
                     break;
                 case REPLY_ACTIVATE_DEMO:
+                    p = players[activePlayer];
                     Landmark landmark = (Landmark)Deck.getCardFromCode(map.value);
-                    for(Landmark l : players[activePlayer].getLandmarks()){
+                    for(Landmark l : p.getLandmarks()){
                         if(l.equals(landmark)){
                             l.closeForRenovation();
+                            p.makeMoney(8);
+                            if(townIndexBeingShown == activePlayer)
+                                ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), true);
+                            break;
                         }
-                        players[activePlayer].makeMoney(8);
                     }
                     if(myPlayerOrder == 0) {
                         numCardsToPick--;
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                         if(numCardsToPick == 0){
-                            activateMajorEstablishments();
+                            if(activateForConvention)
+                                beginEndOfTurn();
+                            else
+                                activateMajorEstablishments();
                         }
                     }
                     break;
@@ -829,7 +950,7 @@ public class GameLogic implements HandlesLogic {
                     selectCardCode = SELECT_CONVENTION;
                     if(activePlayer == myPlayerOrder) {
                         Player[] me = new Player[]{players[activePlayer]};
-                        ui.pickCard(me, me[0].getName(), true);
+                        ui.pickCard(me, me[0].getName(), "Convention Center", true);
                     }
                     break;
                 case REPLY_CONVENTION:
@@ -841,19 +962,34 @@ public class GameLogic implements HandlesLogic {
                 case ADD_TO_CITY:
                     if(map.value.equals("?")){
                         selectCardCode = SELECT_BUY_CARD;
-                        p = players[activePlayer];
+                        p = players[myPlayerOrder];
                         ui.pickCard(market.toArray(new Establishment[market.size()]), p.getLandmarks(), p.getMoney(), p.getCitySet());
                     }
                     else if(map.value.equals("0")){
-                        if(players[activePlayer].checkIfCardAvailable(new Airport()))
+                        if(players[activePlayer].checkIfCardAvailable(new Airport())) {
                             players[activePlayer].makeMoney(10);
+                            ui.makeToast(players[activePlayer].getName() + " makes $10 from Airport");
+                        }
+                        else{
+                            ui.makeToast(players[activePlayer].getName() + " doesn't buy anything");
+                        }
+                        if(myPlayerOrder == 0){
+                            ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
+                            checkTech();
+                        }
                     }
                     else{
+                        p = players[activePlayer];
                         final ArraySet<String> landmarkCodes = new ArraySet<>(Arrays.asList("H", "TR", "SM", "RT", "AP", "A"));
+                         ui.makeToast(p.getName() +" buys "+(Deck.getCardNameFromCode(map.value)));
                         if(landmarkCodes.contains(map.value))
-                            players[activePlayer].buyCard((ConstructibleLandmark) Deck.getCardFromCode(map.value));
-                        else
-                            players[activePlayer].buyCard((Establishment) Deck.getCardFromCode(map.value));
+                            p.buyCard((ConstructibleLandmark) Deck.getCardFromCode(map.value));
+                        else {
+                            p.buyCard((Establishment) Deck.getCardFromCode(map.value));
+                            removeFromMarket((Establishment)Deck.getCardFromCode(map.value));
+                        }
+                        if(townIndexBeingShown == activePlayer)
+                            ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), true);
                         if(myPlayerOrder == 0){
                             ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                             checkTech();
@@ -861,12 +997,20 @@ public class GameLogic implements HandlesLogic {
                     }
                     break;
                 case REQUEST_TECH_CHOICE:
-                    ui.getTechChoice();
+                    //TODO at the time, this is the only way for an active player to see how much is invested. Other players cant see this, so there's information asymmetry. Think of another way to show investment
+                    index = players[myPlayerOrder].getCitySet().indexOf(new TechStartup());
+                    if(index >= 0){
+                        ui.getTechChoice(((TechStartup)players[myPlayerOrder].getCitySet().valueAt(index)).getValue());
+                    }
                     break;
                 case REPLY_TECH_CHOICE:
-                    if(players[activePlayer].getCitySet().contains(new TechStartup())){
+                    if(map.value.equals("y") && players[activePlayer].getCitySet().contains(new TechStartup())){
                         index = players[activePlayer].getCitySet().indexOf(new TechStartup());
                         ((TechStartup)players[activePlayer].getCitySet().valueAt(index)).addInvestment();
+                        if(activePlayer == townIndexBeingShown) {
+                            p = players[activePlayer];
+                            ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+                        }
                     }
                     if(myPlayerOrder == 0){
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
@@ -879,7 +1023,9 @@ public class GameLogic implements HandlesLogic {
 
     @Override
     public void goToNextTown() {
-        if(townIndexBeingShown == players.length-1)
+        if(townIndexBeingShown < 0)
+            townIndexBeingShown = myPlayerOrder;
+        else if(townIndexBeingShown == players.length-1)
             townIndexBeingShown = 0;
         else
             townIndexBeingShown++;
@@ -889,7 +1035,9 @@ public class GameLogic implements HandlesLogic {
 
     @Override
     public void goToPrevTown() {
-        if(townIndexBeingShown == 0)
+        if(townIndexBeingShown < 0)
+            townIndexBeingShown = myPlayerOrder;
+        else if(townIndexBeingShown == 0)
             townIndexBeingShown = players.length-1;
         else
             townIndexBeingShown--;
@@ -903,8 +1051,10 @@ public class GameLogic implements HandlesLogic {
             if (townIndexBeingShown != myPlayerOrder) {
                 townIndexBeingShown = myPlayerOrder;
                 ui.displayTown(players[myPlayerOrder].getName(), players[myPlayerOrder].getMoney(), players[myPlayerOrder].getCity(), players[myPlayerOrder].getLandmarks(), true);
-            } else {
+            }
+            else {
                 ui.displayTown("market", players[myPlayerOrder].getMoney(), market.toArray(new Establishment[market.size()]), new Landmark[0], false);
+                townIndexBeingShown = -1;
             }
         }
     }
@@ -915,20 +1065,28 @@ public class GameLogic implements HandlesLogic {
         if(numCardsToPick > 0 && selectCardCode == SELECT_CARD_MOVE){
             selectedCard = card;
             selectCardCode = SELECT_PLAYER_MOVE;
-            ui.pickPlayer(players, myPlayerOrder);
+            ui.pickPlayer(players, myPlayerOrder, "Pick who to give it to");
         }
         else if(selectCardCode == SELECT_BC_MINE){
             tradeMeForSelected = card;
             selectCardCode = SELECT_BC_THEIRS;
-            Player[] p = new Player[]{players[activePlayer]};
-            ui.pickCard(p, p[0].getName(), true);
+            Player[] p = new Player[players.length-1];
+            int index = 0;
+            for(int i = 0; i < players.length; i++){
+                if(i != activePlayer){
+                    p[index] = players[i];
+                    index++;
+                }
+
+            }
+            ui.pickCard(p, players[activePlayer].getName(), "Business Center: card to take", true);
         }
         else if(selectCardCode == SELECT_BC_THEIRS){
             selectedCard = card;
             for(int i = 0; i < players.length; i++){
                 if(ownerName.equals(players[i].getName())){
-                    tradeCards(players[myPlayerOrder], (Establishment)tradeMeForSelected, players[i], (Establishment)selectedCard);
                     ui.sendMessage(REPLY_TRADE_CARD+":0:"+myPlayerOrder+":"+tradeMeForSelected.getCode()+":"+i+":"+selectedCard.getCode(), -1, -1);
+                    tradeCards(players[myPlayerOrder], (Establishment)tradeMeForSelected, players[i], (Establishment)selectedCard);
                 }
             }
         }
@@ -940,6 +1098,10 @@ public class GameLogic implements HandlesLogic {
             ui.sendMessage(REPLY_ACTIVATE_DEMO+":"+card.getCode(), -1, -1);
             numCardsToPick--;
             card.closeForRenovation();
+            Player p = players[activePlayer];
+            p.makeMoney(8);
+            if(townIndexBeingShown == activePlayer)
+                ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), true);
             if(numCardsToPick == 0 && myPlayerOrder == 0) {
                 if(activateForConvention) {
                     beginEndOfTurn();
@@ -947,25 +1109,40 @@ public class GameLogic implements HandlesLogic {
                 else
                     activateMajorEstablishments();
             }
-            else
+            else if(numCardsToPick > 0)
                 activateDemoCompany();
         }
         else if(selectCardCode == SELECT_CONVENTION){
-            ui.sendMessage(REPLY_CONVENTION+":"+card.getCode(), -1, -1);
-            activateForConvention((Establishment)card);
+            if(myPlayerOrder == 0)
+                activateForConvention((Establishment)card);
+            else
+                ui.sendMessage(REPLY_CONVENTION+":"+card.getCode(), -1, -1);
         }
         else if(selectCardCode == SELECT_BUY_CARD){
             if(card == null){
                 if(players[activePlayer].checkIfCardAvailable(new Airport())) {
                     players[activePlayer].makeMoney(10);
+                    if(townIndexBeingShown == activePlayer)
+                        ui.displayTown(players[activePlayer].getName(), players[activePlayer].getMoney(), players[activePlayer].getCity(), players[activePlayer].getLandmarks(), myPlayerOrder == activePlayer);
                 }
                 ui.sendMessage(ADD_TO_CITY+":0", -1, -1);
             }
             else{
+                final ArraySet<String> landmarkCodes = new ArraySet<>(Arrays.asList("H", "TR", "SM", "RT", "AP", "A"));
+                if(landmarkCodes.contains(card.getCode()))
+                    players[activePlayer].buyCard((ConstructibleLandmark) Deck.getCardFromCode(card.getCode()));
+                else {
+                    players[activePlayer].buyCard((Establishment) Deck.getCardFromCode(card.getCode()));
+                    removeFromMarket((Establishment)Deck.getCardFromCode(card.getCode()));
+                }
                 ui.sendMessage(ADD_TO_CITY+":"+card.getCode(), -1, -1);
+                Player me = players[myPlayerOrder];
+                if(townIndexBeingShown == myPlayerOrder)
+                    ui.displayTown(me.getName(), me.getMoney(), me.getCity(), me.getLandmarks(), true);
             }
-            if(myPlayerOrder == 0)
+            if(myPlayerOrder == 0) {
                 checkTech();
+            }
         }
     }
 
@@ -985,6 +1162,10 @@ public class GameLogic implements HandlesLogic {
                 int moneyGained = players[i].loseMoney(5);
                 players[activePlayer].makeMoney(moneyGained);
                 ui.sendMessage(REPLY_TV_STATION+":"+moneyGained+":"+activePlayer+":"+i, -1, -1);
+                if(activePlayer == townIndexBeingShown || i == townIndexBeingShown) {
+                    Player p = players[townIndexBeingShown];
+                    ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+                }
             }
         }
         if(myPlayerOrder == 0)
@@ -998,9 +1179,10 @@ public class GameLogic implements HandlesLogic {
                 numCardsToPick--;
                 ArraySet<Establishment> set = p.getCitySet();
                 int  renovated = 0;
-                if(set.contains(selectedCard)){
+                if(set.contains((Establishment)selectedCard)){
                     int index = set.indexOf(selectedCard);
-                    if(selectedCard.getNumAvailable() == 0)
+                    if(selectedCard.getNumAvailable() == 0  && selectedCard.getCode().equals("LO")
+                            || selectedCard.getNumCopies() != selectedCard.getNumAvailable())
                         renovated = 1;
                     if(renovated == 0)
                         set.valueAt(index).addCopy();
@@ -1009,8 +1191,14 @@ public class GameLogic implements HandlesLogic {
                 }
                 else
                     set.add((Establishment)selectedCard);
+
+                players[activePlayer].removeCopyOfEstablishment((Establishment)selectedCard, true);
                 ui.sendMessage(REPLY_ACTIVATE_MOVING+":"+i+":"+selectedCard.getCode()+":"+renovated, -1, -1);
                 selectedCard = null;
+                if(activePlayer == townIndexBeingShown || i == townIndexBeingShown) {
+                    p = players[townIndexBeingShown];
+                    ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+                }
                 break;
             }
         }
@@ -1041,6 +1229,7 @@ public class GameLogic implements HandlesLogic {
     private final String REPLY_CONVENTION = "convReply";
     private final String REQUEST_TECH_CHOICE = "tech";
     private final String REPLY_TECH_CHOICE = "techReply";
+    private final String INFORM_OF_REROLL = "rr";
     //I also use "trade <card identifier> for <card identifier> + <playerOrder>
     //give <card identifier> to <playerOrder>
     //renovate <card identifier>
@@ -1051,11 +1240,9 @@ public class GameLogic implements HandlesLogic {
         int i = 0;
         int j = i; //keeps track of the old index
         String a = null;
-        String b = null;
         while((i = dataString.indexOf(':', i)) != -1){
             if(a != null){
-                b = dataString.substring(j, i);
-                list.add(new DataMapping(a, b));
+                list.add(new DataMapping(a, dataString.substring(j, i)));
                 a = null;
             }
             else{
@@ -1064,9 +1251,8 @@ public class GameLogic implements HandlesLogic {
             i++;
             j = i;
         }
-        if(a != null && b == null){
-            b = dataString.substring(j);
-            list.add(new DataMapping(a,b));
+        if(a != null && dataString.length() >= i){
+            list.add(new DataMapping(a, dataString.substring(j)));
         }
         return list;
     }

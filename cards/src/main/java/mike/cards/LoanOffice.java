@@ -11,8 +11,27 @@ public class LoanOffice extends Establishment implements SecondaryIndustry {
     }
 
     @Override
+    //loan office has a special  removeCopy because its the only card you want to give away
+    // working copies of (with others, its better to give away the ones under renovation)
+    public void removeCopy(){
+        if(numCopies > 0){
+            if(numRenovated > 0)
+                numRenovated--;
+            numCopies--;
+        }
+    }
+    @Override
+    public void removeCopyFromOpponent(){
+        if(numCopies > 0){
+            if(numRenovated == numCopies)
+                numRenovated--;
+            numCopies--;
+        }
+    }
+
+    @Override
     public int getCost() {
-        return -4;
+        return -5;
     }
 
     @Override

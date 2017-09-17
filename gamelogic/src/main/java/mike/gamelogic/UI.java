@@ -1,13 +1,7 @@
 package mike.gamelogic;
 
 import android.support.v4.util.ArraySet;
-import android.support.v4.util.SimpleArrayMap;
 
-import java.util.AbstractMap;
-
-import mike.cards.Card;
-import mike.cards.CardDisplayable;
-import mike.cards.CardInterface;
 import mike.cards.Landmark;
 import mike.cards.Establishment;
 
@@ -24,8 +18,10 @@ public interface UI {
      *                          If true, user will be able to pick between one or two dice
      * @param forTunaBoat indicates whether the roll is for TunaBoat activation.
      *                    If this is true, 2 dice will be rolled
+     * @param rerollDice Set to 1 or 2 if this is a reroll.
+     *                     Rerolls must use the same num of dice as the original roll
      */
-    void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat);
+    void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat, int rerollDice);
 
     /**
      * called by logic when displaying another player's dice roll
@@ -39,7 +35,7 @@ public interface UI {
      * @param cardOwners arrays of HasCards, so this can display cards arranged by player name
      * @param name name of this user (for things like determining whether to give a renovated card or non-renovated one)
      */
-    void pickCard(HasCards cardOwners[], String name, boolean nonMajor);
+    void pickCard(HasCards cardOwners[], String name, String message, boolean nonMajor);
 
     /**
      * Allows the user to pick a card with respect to their money owned.
@@ -59,14 +55,7 @@ public interface UI {
      */
     void displayTown(String townName, int money, Establishment[] cityCards, Landmark[] landmarks, boolean myTown);
 
-    //TODO decide if I want the enlarged picture to include the number of copies and number renovated
-    /**
-     * Displays an enlarged picture of a card
-     * @param card the card to be displayed
-     */
-    void displayCard(CardDisplayable card);
-
-    void pickPlayer(Player[] players, int myIndex);
+    void pickPlayer(Player[] players, int myIndex, String title);
 
     /**
      * sends a message across the socket(s)
@@ -82,9 +71,10 @@ public interface UI {
     void changeMoney(int newMoney);
 
     boolean showDialog();
+    //for use with Demolition Company
     void pickCard(Landmark[]myLandmarks, String myName);
 
-    void getTechChoice();
+    void getTechChoice(int currentInvestment);
 
     void askIfAddTwo(final int d1, final int d2);
 

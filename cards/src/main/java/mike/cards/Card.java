@@ -7,7 +7,7 @@ import android.support.annotation.NonNull;
  * provides basic functionality for all cards
  */
 
-public abstract class Card implements CardInterface, CardDisplayable, Comparable<Card>{
+public abstract class Card implements CardInterface, Comparable<Card>{
     protected int numCopies = 1;
     protected int numRenovated = 0;
 

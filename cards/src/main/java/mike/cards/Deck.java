@@ -40,6 +40,7 @@ public class Deck {
                 new PizzaJoint(), new ProduceMarket(), new Publisher(), new Ranch(),
                 new RenoCompany(), new Stadium(), new SushiBar(), new TaxOffice(), new TechStartup(),
                 new TunaBoat(), new TvStation(), new Vineyard(), new WheatField(), new Winery()};
+
         addCopiesToPool(establishments, numPlayers);
 
         Random rand = new Random();
@@ -84,6 +85,10 @@ public class Deck {
         if(deck.size() > 0)
             return deck.pop();
         else return null;
+    }
+
+    public boolean isEmpty(){
+        return deck.isEmpty();
     }
 
     public static Card getCardFromCode(String cardCode){
@@ -178,8 +183,107 @@ public class Deck {
                 return new Vineyard();
             case "WF":
                 return new WheatField();
-            default:
+            case "W":
                 return new Winery();
+            default:
+                return null;
+        }
+    }
+
+    public static String getCardNameFromCode(String cardCode){
+        switch(cardCode){
+            case "A":
+                return "Airport";
+            case "AP":
+                return "AmusementPark";
+            case "AO":
+                return "AppleOrchard";
+            case "B":
+                return "Bakery";
+            case "BP":
+                return "BottlingPlant";
+            case "BS":
+                return "BurgerStand";
+            case "BC":
+                return "BusinessCenter";
+            case "C":
+                return "Cafe";
+            case "CF":
+                return "CheeseFactory";
+            case "CH":
+                return "CityHall";
+            case "CS":
+                return "ConvenienceStore";
+            case "CC":
+                return "ConventionCenter";
+            case "CO": //cornfield
+                return "CornField";
+            case "DC":
+                return "DemoCompany";
+            case "EC":
+                return "ExclusiveClub";
+            case "FA": //familyRestaurant
+                return "FamilyRestaurant";
+            case "FO":
+                return "FlowerOrchard";
+            case "FS":
+                return "FlowerShop";
+            case "FW":
+                return "FoodWarehouse";
+            case "F":
+                return "Forest";
+            case "FR":
+                return "FrenchRestaurant";
+            case "FF":
+                return "FurnitureFactory";
+            case "GS":
+                return "GeneralStore";
+            case "H":
+                return "Harbor";
+            case "LO":
+                return "LoanOffice";
+            case "MB":
+                return "MackerelBoat";
+            case "M":
+                return "Mine";
+            case "MC":
+                return "MovingCompany";
+            case "P":
+                return "Park";
+            case "PJ":
+                return "PizzaJoint";
+            case "PM":
+                return "ProduceMarket";
+            case "PB": //publisher
+                return "Publisher";
+            case "RT":
+                return "RadioTower";
+            case "R":
+                return "Ranch";
+            case "RC":
+                return "RenoCompany";
+            case "SM":
+                return "ShoppingMall";
+            case "S":
+                return "Stadium";
+            case "SB":
+                return "SushiBar";
+            case "TO":
+                return "TaxOffice";
+            case "TS":
+                return "TechStartup";
+            case "TR": //trainStation
+                return "TrainStation";
+            case "TB":
+                return "TunaBoat";
+            case "TV":
+                return "TvStation";
+            case "V":
+                return "Vineyard";
+            case "WF":
+                return "WheatField";
+            default:
+                return "Winery";
         }
     }
 }

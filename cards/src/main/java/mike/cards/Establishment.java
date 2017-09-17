@@ -18,12 +18,16 @@ public abstract class Establishment extends Card {
 
     public void removeCopy(){
         if(numCopies > 0){
-            if(numRenovated > 0 && !getCode().equals("LO"))
+            if(numRenovated > 0)
                 numRenovated--;
-            else if(numRenovated == numCopies)
+            numCopies--;
+        }
+    }
+    public void removeCopyFromOpponent(){
+        if(numCopies > 0){
+            if(numRenovated == numCopies)
                 numRenovated--;
-            else
-                numCopies--;
+            numCopies--;
         }
     }
 
