@@ -74,9 +74,9 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     public static final String PLAYER_ORDER = "PO";
     /**
-     * key for data indicating that the socket is being closed
+     * key for data indicating that the socket is being closed (player is leaving game)
      */
-    public static final String CLOSED_SOCKET = "CS";
+    public static final String LEAVE_GAME = "LG";
 
     /**
      * Sends the given data to the correct receiving Sockets
@@ -148,7 +148,11 @@ public class SocketService extends Service implements ReceivesNewConnections {
         Log.d("receiveConn", "address: " + s.getInetAddress().getHostAddress());
         int playerOrder = connections.addSocket(s);
         sendData(PLAYER_ORDER+':'+playerOrder, playerOrder, -1); //host is playerOrder zero
-        }
+    }
+
+    public void removePlayer(int playerOrder){
+        connections.removeSocket(playerOrder);
+    }
 
     /**
      * arg1 will be checked for index of what socket sent the message
@@ -167,7 +171,7 @@ public class SocketService extends Service implements ReceivesNewConnections {
         @Override
         public void handleMessage(Message msg) {
             SocketService service = mService.get();
-            if(service != null){
+            if(service != null && service.client != null){
                 switch(msg.what){
                     case MSG_INCOMING_DATA:
                         try {
@@ -177,7 +181,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
                             Log.d("remoteException", e.getLocalizedMessage());
                             e.printStackTrace();
                         }
-                        Log.d("incoming", (String)msg.obj);
                         break;
                 }
             }

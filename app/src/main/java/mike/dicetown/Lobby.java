@@ -12,7 +12,6 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
@@ -164,8 +163,18 @@ public class Lobby extends AppCompatActivity{
     }
 
     private void removePlayerFromList(int playerOrder){
+        //change my playerOrder
+        allPlayers.remove(playerOrder);
+        if(myPlayerOrder > playerOrder)
+            myPlayerOrder--;
         LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
-        layout.removeViewAt(playerOrder);
+        int numChildren = layout.getChildCount();
+        for(int i = playerOrder; i < numChildren; i++){
+            layout.removeViewAt(i);
+            if(i+1 < numChildren && layout.getChildAt(i+1) != null){
+                layout.addView(layout.getChildAt(i+1), i);
+            }
+        }
     }
 
     private class PlayerReadyContainer{
@@ -210,7 +219,28 @@ public class Lobby extends AppCompatActivity{
 
     @Override
     public void onBackPressed(){
-        //TODO tell Service to close any sockets and then go back to MainMenu.
+        Context context = this;
+        Intent intent = new Intent(context, MainMenu.class);
+        startActivity(intent);
+        finish();
+        //onStop will end up being called and stop the service
+    }
+
+    @Override
+    public void onPause(){
+        super.onPause();
+        if(isFinishing() && !moveToGame){
+            stopService();
+        }
+    }
+
+    private void stopService(){
+        if(mIsBound){
+            mBoundService.sendData(SocketService.LEAVE_GAME+":"+myPlayerOrder, -1, -1);
+            stopService(new Intent(Lobby.this, SocketService.class));
+            doUnbindService();
+            mIsBound = false; //in case this ends up being called again
+        }
     }
 
     /* https://stackoverflow.com/a/18638588 */
@@ -296,16 +326,6 @@ public class Lobby extends AppCompatActivity{
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if(!moveToGame)
-            stopService(new Intent(Lobby.this, SocketService.class));
-        doUnbindService();
-
-
-    }
-
     private static class IncomingHandler extends Handler{
         private final WeakReference<Lobby> mActivity;
         IncomingHandler(Lobby activity){
@@ -349,8 +369,6 @@ public class Lobby extends AppCompatActivity{
             if(mapping.keyWord.contains(SocketService.PLAYER_ORDER)){
                 if(!host) {
                     removePlayerFromList(myPlayerOrder);
-                    //change my playerOrder
-                    allPlayers.remove(myPlayerOrder);
                     myPlayerOrder = Integer.parseInt(mapping.value);
                     //the keyword includes my player order
                     mBoundService.sendData(PLAYER_NAME+myPlayerOrder+':'+myTownName, 0,-1);
@@ -400,6 +418,23 @@ public class Lobby extends AppCompatActivity{
             }
             else if(mapping.keyWord.equals("BG")){ //begin game
                 goToGame();
+            }
+            else if(mapping.keyWord.equals(SocketService.LEAVE_GAME)){
+                int playerOrderLeaving = Integer.parseInt(mapping.value);
+                if(playerOrderLeaving == 0){
+                    Toast.makeText(this, "Host left game", Toast.LENGTH_SHORT).show();
+                    onBackPressed();
+                }
+                else{
+                    Toast.makeText(this, allPlayers.get(playerOrderLeaving).townName + " left the game",
+                            Toast.LENGTH_SHORT).show();
+                    mBoundService.removePlayer(playerOrderLeaving);
+                    removePlayerFromList(playerOrderLeaving);
+
+                    if(myPlayerOrder == 0){
+                        mBoundService.sendData(dataString, -1, -1);
+                    }
+                }
             }
         }
     }
@@ -470,7 +505,6 @@ public class Lobby extends AppCompatActivity{
                 break;
         }
         if(s.equals("")) {
-            Log.d("extractInt", "no integer found to parse");
             return Integer.MIN_VALUE;
         }
         return Integer.parseInt(s);

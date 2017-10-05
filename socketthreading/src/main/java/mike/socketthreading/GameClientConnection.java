@@ -5,7 +5,6 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
-import android.util.Log;
 import android.util.SparseArray;
 
 import java.io.BufferedReader;
@@ -44,9 +43,11 @@ class GameClientConnection {
         sockets = new SparseArray<>();
     }
 
-    //TODO quit close the sockets and quit the thread when I end the game
+    //I don't really use this, instead I let the thread (and sockets) die when the service is killed
     void quitThread(){
-        myThread.quit();
+        synchronized (lock) {
+            myThread.quit();
+        }
     }
 
     int addSocket(Socket s){
@@ -57,6 +58,22 @@ class GameClientConnection {
         nextSocketKey++;
         readData(i);
         return i;
+    }
+
+    void removeSocket(int playerOrder){
+        synchronized (lock) {
+            int size = sockets.size();
+            //while most things are indexed from zero, this one isn't.
+            // (If I'm host, first player to join is key 1 and key 0 is empty)
+            for(int i = playerOrder; i <= size; i++){
+                sockets.remove(i);
+                if(size > i && sockets.get(i+1) != null) {
+                    Socket s = sockets.get(i + 1);
+                    sockets.put(i, s);
+                }
+            }
+            nextSocketKey--;
+        }
     }
 
     /**
@@ -99,7 +116,6 @@ class GameClientConnection {
                     android.os.Debug.waitForDebugger();
                 try {
                     synchronized (s.getOutputStream()) {
-                        Log.d("writeData", "sending to "+s.getInetAddress().getHostAddress());
                         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
                         writer.write(dataToBeSent, 0, dataToBeSent.length());
                         writer.newLine();
@@ -131,7 +147,6 @@ class GameClientConnection {
                         if (android.os.Debug.isDebuggerConnected())
                             android.os.Debug.waitForDebugger();
                         synchronized (s.getInputStream()) {
-                            Log.d("readData", "reading from index " + index);
                             BufferedReader reader = new BufferedReader(new InputStreamReader(s.getInputStream()));
                             String line;
                             while (reader.ready()) {

@@ -1230,10 +1230,6 @@ public class GameLogic implements HandlesLogic {
     private final String REQUEST_TECH_CHOICE = "tech";
     private final String REPLY_TECH_CHOICE = "techReply";
     private final String INFORM_OF_REROLL = "rr";
-    //I also use "trade <card identifier> for <card identifier> + <playerOrder>
-    //give <card identifier> to <playerOrder>
-    //renovate <card identifier>
-    //demo<card identifier>
 
     private ArrayList<DataMapping> parseIncomingData(String dataString){
         ArrayList<DataMapping> list = new ArrayList<>();
