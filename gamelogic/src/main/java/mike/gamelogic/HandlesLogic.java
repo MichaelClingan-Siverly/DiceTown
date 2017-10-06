@@ -15,6 +15,8 @@ public interface HandlesLogic {
     void goToPrevTown();
     void middleButtonPressed();
     void receiveTechChoice(boolean makeInvestment);
+    void setLeaveGameCode(String code);
+    int getPlayerOrder();
 
     /**
      * indicates that user selected a card for whatever reason they needed to select a card

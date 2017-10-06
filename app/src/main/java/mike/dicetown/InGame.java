@@ -84,6 +84,40 @@ public class InGame extends AppCompatActivity implements UI {
         //the logic should determine when the town should be displayed
     }
 
+    //work is done here since onStop is not guaranteed to be called
+    @Override
+    public void onPause(){
+        super.onPause();
+        if(isFinishing()){
+            stopService();
+        }
+    }
+
+    @Override
+    public void onBackPressed(){
+        Context context = this;
+        Intent intent = new Intent(context, MainMenu.class);
+        startActivity(intent);
+        finish();
+        //onPause will end up being called and stop the service
+    }
+
+    @Override
+    public void leaveGame() {
+        //I'm the one leaving - this should only happen if the host leaving forces me to leave
+        onBackPressed();
+    }
+
+    private void stopService(){
+        if(mIsBound){
+            int myOrder = logic.getPlayerOrder();
+            mBoundService.sendData(SocketService.LEAVE_GAME+":"+myOrder, -1, -1);
+            stopService(new Intent(InGame.this, SocketService.class));
+            doUnbindService();
+            mIsBound = false; //in case this ends up being called again
+        }
+    }
+
     //this needs to be public because Buttons made in xml use it
     public void middleButton(View view){
         resetMidButtonText(true);
@@ -123,6 +157,7 @@ public class InGame extends AppCompatActivity implements UI {
         displayTown(me.getName(), me.getMoney(), me.getCity(), me.getLandmarks(), true);
 
         logic = new GameLogic(InGame.this, players, myPlayerOrder);
+        logic.setLeaveGameCode(SocketService.LEAVE_GAME);
     }
 
     private void initButtons(){

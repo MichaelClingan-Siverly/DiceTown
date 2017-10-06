@@ -79,4 +79,6 @@ public interface UI {
     void askIfAddTwo(final int d1, final int d2);
 
     void askIfReroll(final int d1, final int d2);
+
+    void leaveGame();
 }

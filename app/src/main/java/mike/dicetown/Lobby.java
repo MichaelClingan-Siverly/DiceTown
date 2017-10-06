@@ -27,6 +27,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 
+import mike.gamelogic.DataParser;
 import mike.socketthreading.SocketService;
 
 
@@ -223,9 +224,10 @@ public class Lobby extends AppCompatActivity{
         Intent intent = new Intent(context, MainMenu.class);
         startActivity(intent);
         finish();
-        //onStop will end up being called and stop the service
+        //onPause will end up being called and stop the service
     }
 
+    //work is done here since onStop is not guaranteed to be called
     @Override
     public void onPause(){
         super.onPause();
@@ -363,8 +365,8 @@ public class Lobby extends AppCompatActivity{
          */
         final String PLAYER_NAME = "PN";
 
-        ArrayList<DataMapping> list = parseIncomingData(dataString);
-        for(DataMapping mapping : list){
+        ArrayList<DataParser.DataMapping> list = DataParser.parseIncomingData(dataString);
+        for(DataParser.DataMapping mapping : list){
             //host telling players what their player order is. Reply with the name of this user's town
             if(mapping.keyWord.contains(SocketService.PLAYER_ORDER)){
                 if(!host) {
@@ -383,7 +385,7 @@ public class Lobby extends AppCompatActivity{
             }
             //players telling you what their name is
             else if(mapping.keyWord.contains(PLAYER_NAME)){
-                int order = extractInt(mapping.keyWord);
+                int order = DataParser.extractInt(mapping.keyWord);
                 String name = mapping.value;
                 if(host){
                     name = checkName(name);
@@ -409,7 +411,7 @@ public class Lobby extends AppCompatActivity{
                 }
             }
             else if(mapping.keyWord.contains(CHANGE_READINESS)){
-                int order = extractInt(mapping.value);
+                int order = DataParser.extractInt(mapping.value);
                 changeReadiness(order);
                 //If I'm the host, tell all other players that this player is (un)ready
                 if(host){
@@ -472,50 +474,50 @@ public class Lobby extends AppCompatActivity{
         return name+s;
     }
 
-    private ArrayList<DataMapping> parseIncomingData(String dataString){
-        ArrayList<DataMapping> list = new ArrayList<>();
-        int i = 0;
-        int j = i; //keeps track of the old index
-        String a = null;
-        while((i = dataString.indexOf(':', i)) != -1){
-            if(a != null){
-                list.add(new DataMapping(a, dataString.substring(j, i)));
-                a = null;
-            }
-            else{
-                a = dataString.substring(j, i);
-            }
-            i++;
-            j = i;
-        }
-        if(a != null && dataString.length() >= i){
-            list.add(new DataMapping(a, dataString.substring(j)));
-        }
-        return list;
-    }
-
-    //returns the first int value found in the string, and Integer.MIN_VALUE if no int can be found
-    private int extractInt(String str){
-        String s = "";
-        for(int i = 0; i < str.length(); i++){
-            if(str.charAt(i) >= '0' && str.charAt(i) <= '9'){
-                s+=str.charAt(i);
-            }
-            else if(!s.equals(""))
-                break;
-        }
-        if(s.equals("")) {
-            return Integer.MIN_VALUE;
-        }
-        return Integer.parseInt(s);
-    }
-
-    private class DataMapping{
-        String keyWord;
-        String value;
-        DataMapping(String keyword, String value){
-            this.keyWord = keyword;
-            this.value = value;
-        }
-    }
+//    private ArrayList<DataMapping> parseIncomingData(String dataString){
+//        ArrayList<DataMapping> list = new ArrayList<>();
+//        int i = 0;
+//        int j = i; //keeps track of the old index
+//        String a = null;
+//        while((i = dataString.indexOf(':', i)) != -1){
+//            if(a != null){
+//                list.add(new DataMapping(a, dataString.substring(j, i)));
+//                a = null;
+//            }
+//            else{
+//                a = dataString.substring(j, i);
+//            }
+//            i++;
+//            j = i;
+//        }
+//        if(a != null && dataString.length() >= i){
+//            list.add(new DataMapping(a, dataString.substring(j)));
+//        }
+//        return list;
+//    }
+//
+//    //returns the first int value found in the string, and Integer.MIN_VALUE if no int can be found
+//    private int extractInt(String str){
+//        String s = "";
+//        for(int i = 0; i < str.length(); i++){
+//            if(str.charAt(i) >= '0' && str.charAt(i) <= '9'){
+//                s+=str.charAt(i);
+//            }
+//            else if(!s.equals(""))
+//                break;
+//        }
+//        if(s.equals("")) {
+//            return Integer.MIN_VALUE;
+//        }
+//        return Integer.parseInt(s);
+//    }
+//
+//    private class DataMapping{
+//        String keyWord;
+//        String value;
+//        DataMapping(String keyword, String value){
+//            this.keyWord = keyword;
+//            this.value = value;
+//        }
+//    }
 }
