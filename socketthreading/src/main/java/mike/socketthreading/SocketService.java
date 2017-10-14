@@ -3,6 +3,7 @@ package mike.socketthreading;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -41,7 +42,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
      * @return true if there was no other client and this one was registered, false otherwise
      */
     public boolean registerClient(Messenger clientsMessenger){
-        Log.d("registeringClient", "what that said");
         if(client == null) {
             client = clientsMessenger;
             return true;
@@ -101,15 +101,9 @@ public class SocketService extends Service implements ReceivesNewConnections {
             previouslyStarted = true;
             checkIntent(intent);
         }
-        Log.i("LocalService", "Received start id " + startId + ": " + intent);
         return START_REDELIVER_INTENT;
     }
 
-    /**
-     * @param intent checked for INTENT_HOST_IP String extra. If it is not set or null,
-     *               then a ServerSocket will be opened and listen for connections until
-     *               sTopAcceptingConnections() is called
-     */
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
@@ -123,6 +117,8 @@ public class SocketService extends Service implements ReceivesNewConnections {
      * used when creating this Service. Required whether a client or server
      */
     public final static String INTENT_HOST_IP_STRING = "IP";
+
+    public final static String INTENT_FIRST_BIND = "init";
 
     private void checkIntent(Intent intent){
         boolean host = intent.getBooleanExtra(INTENT_HOST_BOOLEAN, false);
@@ -145,7 +141,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     @Override
     public void receiveConnection(Socket s) {
-        Log.d("receiveConn", "address: " + s.getInetAddress().getHostAddress());
         int playerOrder = connections.addSocket(s);
         sendData(PLAYER_ORDER+':'+playerOrder, playerOrder, -1); //host is playerOrder zero
     }

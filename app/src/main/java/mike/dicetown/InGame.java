@@ -93,6 +93,17 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
+    /*
+        App is not guaranteed to call this, but I'm sort of at a loss otherwise.
+        I'd like to create a proper bound service, but when moving from lobby to
+        the game, it kills that service when I want to to stay active the whole time...
+     */
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopService();
+    }
+
     @Override
     public void onBackPressed(){
         Context context = this;
@@ -103,16 +114,19 @@ public class InGame extends AppCompatActivity implements UI {
     }
 
     @Override
-    public void leaveGame() {
+    public void leaveGame(int playerOrder) {
         //I'm the one leaving - this should only happen if the host leaving forces me to leave
-        onBackPressed();
+        if(playerOrder == logic.getPlayerOrder())
+            onBackPressed();
+        else{
+            mBoundService.removePlayer(playerOrder);
+        }
     }
 
     private void stopService(){
         if(mIsBound){
             int myOrder = logic.getPlayerOrder();
             mBoundService.sendData(SocketService.LEAVE_GAME+":"+myOrder, -1, -1);
-            stopService(new Intent(InGame.this, SocketService.class));
             doUnbindService();
             mIsBound = false; //in case this ends up being called again
         }
@@ -193,12 +207,6 @@ public class InGame extends AppCompatActivity implements UI {
             logic.goToPrevTown();
         else
             logic.goToNextTown();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        doUnbindService();
     }
 
     @Override
@@ -898,7 +906,6 @@ public class InGame extends AppCompatActivity implements UI {
             mBoundService.registerClient(mMessenger);
             initButtons();
             getExtras();
-
         }
 
         public void onServiceDisconnected(ComponentName className) {
@@ -923,7 +930,6 @@ public class InGame extends AppCompatActivity implements UI {
 
     void doUnbindService() {
         if (mIsBound) {
-            mBoundService.stopAcceptingConnections();
             // Detach our existing connection.
             mBoundService.unregisterClient(mMessenger);
             unbindService(mConnection);

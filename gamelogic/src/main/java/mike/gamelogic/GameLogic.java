@@ -710,6 +710,10 @@ public class GameLogic implements HandlesLogic {
         }
     }
 
+    private void endTurn(){
+
+    }
+
     private void notifyOfNewActivePlayer(boolean sameAsLastTurn){
         String nameWithSuffix = players[activePlayer].getName();
         if(nameWithSuffix.endsWith("s") || nameWithSuffix.endsWith("z"))
@@ -774,9 +778,13 @@ public class GameLogic implements HandlesLogic {
                     }
                     if(myPlayerOrder == 0){
                         if(map.keyWord.equals(ROLL)) {
+                            String stringToSend = ROLL + ":" + d1 + ":d2:" + d2;
                             originalRoll = d1+d2;
-                            if(addTwo)
+                            if(addTwo) {
                                 originalRoll += 2;
+                                stringToSend += ":add2:0";
+                            }
+                            ui.sendMessage(stringToSend, -1, activePlayer);
                             if(d1 == d2)
                                 rolledDoubles = true;
                             activateRestaurants();
@@ -1017,15 +1025,24 @@ public class GameLogic implements HandlesLogic {
                             ui.sendMessage(leaveGameCode+":"+playerOrderLeaving, -1, -1);
                         else if(playerOrderLeaving == 0){
                             ui.makeToast("host left game");
-                            ui.leaveGame();
+                            ui.leaveGame(myPlayerOrder);
                             return;
                         }
-
                         ui.makeToast(players[playerOrderLeaving].getName() + " left the game");
                         removePlayer(playerOrderLeaving);
 
                         if(townIndexBeingShown == playerOrderLeaving)
                             displayTown(myPlayerOrder);
+                        //host needs to handle the case where active player leaves the game
+                        if(myPlayerOrder == 0 && playerOrderLeaving == activePlayer){
+                            activePlayer = activePlayer % players.length;
+                            resetIndicators(NOT_REROLL);
+                            ui.sendMessage(BEGIN_TURN + ":" + activePlayer, -1, -1);
+                            if(activePlayer == 0)
+                                beginTurnDiceRoll(NOT_REROLL);
+                            else
+                                notifyOfNewActivePlayer(false);
+                        }
                     }
             }
         }
@@ -1041,6 +1058,7 @@ public class GameLogic implements HandlesLogic {
         Player[] newArray = new Player[players.length - 1];
         System.arraycopy(players, 0, newArray, 0, players.length - 1);
         players = newArray;
+        ui.leaveGame(playerOrder);
     }
 
     private void displayTown(int playerIndex){

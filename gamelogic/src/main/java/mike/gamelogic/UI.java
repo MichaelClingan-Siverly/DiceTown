@@ -80,5 +80,5 @@ public interface UI {
 
     void askIfReroll(final int d1, final int d2);
 
-    void leaveGame();
+    void leaveGame(int playerOrder);
 }

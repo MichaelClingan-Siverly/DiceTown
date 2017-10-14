@@ -5,6 +5,7 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.util.Log;
 import android.util.SparseArray;
 
 import java.io.BufferedReader;
@@ -26,10 +27,13 @@ class GameClientConnection {
     private HandlerThread myThread;
     //Handler for this class. Left it a Handler so I can post Runnables in addition to receiving Messages
     private Handler mHandler;
-    private SparseArray<Socket> sockets;
+    private SparseArray<SocketContainer> sockets;
     private int nextSocketKey;
     //used as a synchronization lock for accesses to the SparseArray itself
     private final Object lock = new Object();
+    //sockets made to create 2 pings, one now and one at half this time from now.
+    //each ping reply creates new pings at this time
+    private final int timer = 15000;
 
     GameClientConnection(Messenger sendStuffTo, boolean host){
         if(host)
@@ -52,11 +56,12 @@ class GameClientConnection {
 
     int addSocket(Socket s){
         synchronized (lock) {
-            sockets.put(nextSocketKey, s);
+            sockets.put(nextSocketKey, new SocketContainer(s));
         }
         int i = nextSocketKey;
         nextSocketKey++;
         readData(i);
+        beginKeepAlive(i);
         return i;
     }
 
@@ -68,8 +73,8 @@ class GameClientConnection {
             for(int i = playerOrder; i <= size; i++){
                 sockets.remove(i);
                 if(size > i && sockets.get(i+1) != null) {
-                    Socket s = sockets.get(i + 1);
-                    sockets.put(i, s);
+                    SocketContainer cont = sockets.get(i + 1);
+                    sockets.put(i, cont);
                 }
             }
             nextSocketKey--;
@@ -84,12 +89,12 @@ class GameClientConnection {
      * @param keyToSkip if set to an index of a socket, data will be sent to all sockets but that one
      */
     void sendData(String dataToBeSent, int keyToSendTo, int keyToSkip){
-        Socket s;
+        SocketContainer cont;
         synchronized (lock){
-            s = sockets.get(keyToSendTo);
+           cont  = sockets.get(keyToSendTo);
         }
-        if(s != null){
-            sendDataHelper(dataToBeSent, s);
+        if(cont != null){
+            sendDataHelper(dataToBeSent, keyToSendTo);
         }
         else{
             int length;
@@ -100,20 +105,89 @@ class GameClientConnection {
                 int thisKey;
                 synchronized (lock){
                     thisKey = sockets.keyAt(i);
-                    s = sockets.get(thisKey);
                 }
                 if(thisKey != keyToSkip)
-                    sendDataHelper(dataToBeSent, s);
+                    sendDataHelper(dataToBeSent, thisKey);
             }
         }
     }
 
-    private void sendDataHelper(final String dataToBeSent, final Socket s){
-        mHandler.post(new Runnable() {
+    private void sendDataHelper(final String dataToBeSent, final int index){
+        SocketContainer cont;
+        synchronized (lock){
+            cont = sockets.get(index);
+        }
+        if(cont != null && cont.socket != null) {
+            Runnable r = new SendDataRunnable(dataToBeSent, index);
+            mHandler.post(r);
+        }
+    }
+
+    private void beginKeepAlive(final int index){
+        postKeepAlive(index);
+        mHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if(android.os.Debug.isDebuggerConnected())
-                    android.os.Debug.waitForDebugger();
+                postKeepAlive(index);
+            }
+        }, timer / 2);
+    }
+
+    //even is used to keep the keepAlive posts from increasing
+    private void postKeepAlive(int index){
+        SocketContainer cont;
+        synchronized (lock){
+            cont = sockets.get(index);
+        }
+        if(cont != null){
+            Runnable r = new PingRunnable(index);
+            mHandler.postDelayed(r, timer);
+        }
+    }
+
+    private class PingRunnable implements Runnable{
+        private int i;
+        PingRunnable(final int index){
+            i = index;
+        }
+        @Override
+        public void run() {
+            Log.d("ping", "ping sent to " + i);
+            SocketContainer cont;
+            synchronized (lock){
+                cont = sockets.get(i);
+            }
+            if(cont != null) {
+                if (cont.active) {
+                    cont.active = false;
+                    mHandler.post(new SendDataRunnable("ping", i));
+                }
+                else if (!cont.killMe) {
+                    cont.killMe = true;
+                    //inform the client that the player at this index has left. Let it decide if socket should be removed
+                    mHandler.sendMessage(Message.obtain(null, SocketService.MSG_INCOMING_DATA, i, -1, SocketService.LEAVE_GAME + ":" + i));
+                }
+            }
+        }
+    }
+
+    private class SendDataRunnable implements Runnable{
+        String dataToBeSent;
+        private int i;
+        Socket s;
+        SendDataRunnable(final String dataToSend, final int index){
+            if(sockets.get(index) != null && sockets.get(index).socket != null)
+                s = sockets.get(index).socket;
+            dataToBeSent = dataToSend;
+            i = index;
+        }
+        @Override
+        public void run() {
+            SocketContainer cont;
+            synchronized (lock){
+                cont = sockets.get(i);
+            }
+            if(cont != null) {
                 try {
                     synchronized (s.getOutputStream()) {
                         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
@@ -121,12 +195,11 @@ class GameClientConnection {
                         writer.newLine();
                         writer.flush();
                     }
-                } catch (IOException e){
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
-        });
-
+        }
     }
 
     /**
@@ -138,20 +211,34 @@ class GameClientConnection {
         mHandler.post(new Runnable() {
             @Override
             public void run() {
-                Socket s;
+                Socket s = null;
                 synchronized(lock){
-                    s = sockets.get(index);
+                    if(sockets.get(index) != null && sockets.get(index).socket != null)
+                        s = sockets.get(index).socket;
                 }
                 try {
                     if (s != null && s.getInputStream().available() > 0) {
-                        if (android.os.Debug.isDebuggerConnected())
-                            android.os.Debug.waitForDebugger();
                         synchronized (s.getInputStream()) {
                             BufferedReader reader = new BufferedReader(new InputStreamReader(s.getInputStream()));
                             String line;
                             while (reader.ready()) {
                                 line = reader.readLine();
-                                mHandler.sendMessage(Message.obtain(null, SocketService.MSG_INCOMING_DATA, index, -1, line));
+                                switch (line){
+                                    case "ping":
+                                        sendDataHelper("pong", index);
+                                        break;
+                                    case "pong":
+                                        Log.d("ping", "pong returned from "+ index);
+                                        synchronized (lock){
+                                            if(sockets.get(index) != null) {
+                                                sockets.get(index).active = true;
+                                                postKeepAlive(index);
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        mHandler.sendMessage(Message.obtain(null, SocketService.MSG_INCOMING_DATA, index, -1, line));
+                                }
                             }
                         }
                     }
@@ -187,6 +274,17 @@ class GameClientConnection {
                         break;
                 }
             }
+        }
+    }
+
+    private class SocketContainer{
+        Socket socket;
+        boolean active;
+        boolean killMe;
+        SocketContainer(Socket s){
+            socket = s;
+            active = true;
+            killMe = false;
         }
     }
 }
