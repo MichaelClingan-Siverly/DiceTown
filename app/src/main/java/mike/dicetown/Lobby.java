@@ -276,6 +276,7 @@ public class Lobby extends AppCompatActivity{
             int cutOff = inet.toString().lastIndexOf('/');
             return inet.toString().substring(cutOff+1);
         } catch (UnknownHostException e) {
+            //It'd be weird to get this exception, since I'm just working with what the system gives me
             e.printStackTrace();
         }
 
@@ -356,6 +357,10 @@ public class Lobby extends AppCompatActivity{
                 switch(msg.what){
                     case SocketService.MSG_INCOMING_DATA:
                         activity.handleIncomingData((String)msg.obj);
+                        break;
+                    case SocketService.MSG_CANT_JOIN_GAME:
+                        Toast.makeText(activity, "Could not connect to host", Toast.LENGTH_SHORT).show();
+                        activity.onBackPressed();
                         break;
                     default:
                         super.handleMessage(msg);

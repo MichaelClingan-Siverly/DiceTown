@@ -10,8 +10,11 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
+import android.widget.Toast;
+
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
 
@@ -20,6 +23,7 @@ public class SocketService extends Service implements ReceivesNewConnections {
     private AcceptConnections serverListenerTask = null;
     private GameClientConnection connections = null;
     private boolean previouslyStarted = false;
+    private boolean cantConnectFlag = false;
 
     // This is the object that receives interactions from clients.  See
     // RemoteService for a more complete example.
@@ -44,6 +48,8 @@ public class SocketService extends Service implements ReceivesNewConnections {
     public boolean registerClient(Messenger clientsMessenger){
         if(client == null) {
             client = clientsMessenger;
+            if (cantConnectFlag)
+                kickUser();
             return true;
         }
         return false;
@@ -153,6 +159,7 @@ public class SocketService extends Service implements ReceivesNewConnections {
      * arg1 will be checked for index of what socket sent the message
      */
     public final static int MSG_INCOMING_DATA = 1;
+    public final static int MSG_CANT_JOIN_GAME = 2;
 
     /**
      * Handler of incoming messages from clients.
@@ -198,11 +205,33 @@ public class SocketService extends Service implements ReceivesNewConnections {
                 InetAddress inetAddr = InetAddress.getByName(address);
                 Socket s = new Socket(inetAddr, AcceptConnections.SERVERPORT);
                 connections.addSocket(s);
-
+            }
+            //have lobby kick users out - host ip may be reachable, but not actually hosting a game
+            catch(ConnectException e){
+                if(client != null){
+                    kickUser();
+                }
+                else{
+                    cantConnectFlag = true;
+                }
             }
             catch (IOException e) {
+                Log.d("Exception", e.getLocalizedMessage());
                 e.printStackTrace();
             }
+        }
+    }
+
+    private void kickUser(){
+        Message m = Message.obtain();
+        m.what= MSG_CANT_JOIN_GAME;
+        try {
+            client.send(m);
+        }
+        catch(RemoteException re){
+            //I don't want to let the game crash for a user, but not sure how I should be handling
+            //some of these exceptions I don't expect to be getting
+            Log.d("RemoteException", "shouldn't be getting these at this point");
         }
     }
 }

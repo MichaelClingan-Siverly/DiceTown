@@ -18,6 +18,7 @@ import android.support.v4.util.ArraySet;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -504,6 +505,7 @@ public class InGame extends AppCompatActivity implements UI {
                         else if (card.getNumCopies() - card.getNumAvailable() > 0 && myName.equals(playerName) && !card.getCode().equals("LO"))
                             e.closeForRenovation();
                     } catch (Exception e1) {
+                        Log.d("pickCard", "exception caught");
                         e1.printStackTrace();
                     }
                     layout.addView(frame);
