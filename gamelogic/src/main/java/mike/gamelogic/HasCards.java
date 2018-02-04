@@ -14,4 +14,5 @@ public interface HasCards {
     Establishment[] getCity();
     ArraySet<Establishment> getCitySet();
     String getName();
+    int getMoney();
 }

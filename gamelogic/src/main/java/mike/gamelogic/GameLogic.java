@@ -1,9 +1,11 @@
 package mike.gamelogic;
 
+import android.app.Activity;
+import android.content.Context;
+import android.os.Bundle;
 import android.support.v4.util.ArraySet;
 import android.util.Log;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -34,8 +36,11 @@ import mike.cards.TvStation;
  * Created by mike on 7/31/2017.
  */
 
-public class GameLogic implements HandlesLogic {
+public class GameLogic extends HandlesLogic {
+    public static final String TAG_LOGIC_FRAGMENT = "logicFragment";
+
     private UI ui;
+    private boolean initialized = false;
     private int myPlayerOrder;
     private Player[] players;
     private int townIndexBeingShown;
@@ -64,8 +69,44 @@ public class GameLogic implements HandlesLogic {
     private boolean rolledDoubles = false;
     private boolean radioRerollAvailable = false;
 
-    public GameLogic(UI ui, Player[] players, int myPlayerOrder){
-        this.ui = ui;
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // retain this fragment. it's pretty large, and saving everything seems liek a hassle
+        setRetainInstance(true);
+    }
+
+    @Override
+    public void onAttach(Context context){
+        super.onAttach(context);
+        ui = (UI)context;
+    }
+    //because the other onAttach is added in API 23
+    @Override
+    public void onAttach(Activity activity){
+        super.onAttach(activity);
+        ui = (UI)activity;
+    }
+
+    @Override
+    public void onActivityCreated(Bundle savedInstanceState){
+        super.onActivityCreated(savedInstanceState);
+        ui.finishAttachingLogic();
+    }
+
+    @Override
+    public void onDetach (){
+        super.onDetach();
+        ui = null;
+    }
+
+    public void initLogic(Player[] players, int myPlayerOrder){
+        if(initialized) {
+            displayTown(townIndexBeingShown);
+            return;
+        }
+
+        initialized = true;
         this.players = players;
         this.myPlayerOrder = myPlayerOrder;
 
@@ -80,7 +121,6 @@ public class GameLogic implements HandlesLogic {
         else
             ui.sendMessage(IN_GAME+":"+myPlayerOrder, 0, -1);
 
-        Player me = players[myPlayerOrder];
         displayTown(myPlayerOrder);
     }
 
@@ -209,18 +249,23 @@ public class GameLogic implements HandlesLogic {
         }
     }
 
-    //With at most 38 * numPlayers per activation round (of which there are 3),
-    // I'm betting that the cost to iterate is less than the cost for others to iterate theirs and send the data
+    //start with Restaurants
     private void activateRestaurants(){
-        //start with Restaurants
+        //I'm choosing to have host iterate all players and tell
+        //each other player how much money is gained or owed
         if(myPlayerOrder == 0){
             int[] moneyOwed = getRestaurantMoneyOwed();
             int index = activePlayer;
+            //set index to previous player (or last player if current is host)
             index = index-1 >= 0 ? index-1 : players.length-1;
             int totalPaid = 0;
+            //pay all players in reverse turn order (beginning with the player who goes before you)
             while(index != activePlayer){
                 if(moneyOwed[index] > 0){
                     int moneyPaid = players[activePlayer].loseMoney(moneyOwed[index]);
+                    //if a player is out of money, don't bother doing any more work...
+                    if(moneyPaid == 0)
+                        break;
                     totalPaid += moneyPaid;
                     players[index].makeMoney(moneyPaid);
                     moneyStuff(index, moneyPaid, false);
@@ -305,8 +350,10 @@ public class GameLogic implements HandlesLogic {
 
     private void activateDemoCompany(){
         selectCardCode = SELECT_DEMO;
-        ui.pickCard(players[myPlayerOrder].getLandmarks(), players[myPlayerOrder].getName());
+        ui.pickCard(players[myPlayerOrder].getMyConstructedLandmarks(), players[myPlayerOrder].getName());
     }
+
+
 
     private int[] getIndustryMoneyGained(int tunaRoll){
         int[] moneyGained = new int[players.length];
@@ -352,7 +399,6 @@ public class GameLogic implements HandlesLogic {
     //helpful to remember that major establishments can not be renovated, so I don't have to check
     private void activateMajorEstablishments(){
         if(myPlayerOrder != 0){
-            Log.d("activateMajor", "non-host is activating major establishments");
             return;
         }
         int totalGained = 0;
@@ -420,8 +466,8 @@ public class GameLogic implements HandlesLogic {
                 selectCardCode = SELECT_CONVENTION;
                 if(activePlayer == 0 && myPlayerOrder == 0) {
                     activateForConvention = true;
-                    Player[] me = new Player[]{players[activePlayer]};
-                    ui.pickCard(me, me[0].getName(), "Convention Center", true);
+                    Player[] me = new Player[]{players[0]};
+                    ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", true);
                 }
                 else
                     ui.sendMessage(REQUEST_CONVENTION+":0", activePlayer, -1);
@@ -492,8 +538,8 @@ public class GameLogic implements HandlesLogic {
         if(originalRoll == 6 &&  players[activePlayer].getCitySet().contains(new BusinessCenter())){
             if(activePlayer == 0 && myPlayerOrder == 0) {
                 selectCardCode = SELECT_BC_MINE;
-                Player[] p = new Player[]{players[0]};
-                ui.pickCard(p, p[0].getName(), "Business Center: card to give", true);
+                Player[] me = new Player[]{players[0]};
+                ui.pickCard(me, players[myPlayerOrder].getName(), "Business Center: card to give", true);
             }
             else {
                 ui.sendMessage(REQUEST_TRADE_CARD+":0", activePlayer, -1);
@@ -649,8 +695,8 @@ public class GameLogic implements HandlesLogic {
     private void endOfTurnBuy(){
         selectCardCode = SELECT_BUY_CARD;
         if(myPlayerOrder == activePlayer){
-            Player p = players[myPlayerOrder];
-            ui.pickCard(market.toArray(new Establishment[market.size()]), p.getLandmarks(), p.getMoney(), p.getCitySet());
+            Player me = players[myPlayerOrder];
+            ui.pickCard(market.toArray(new Establishment[market.size()]), me);
         }
         else
             ui.sendMessage(ADD_TO_CITY+":?", activePlayer, -1);
@@ -710,10 +756,6 @@ public class GameLogic implements HandlesLogic {
         }
     }
 
-    private void endTurn(){
-
-    }
-
     private void notifyOfNewActivePlayer(boolean sameAsLastTurn){
         String nameWithSuffix = players[activePlayer].getName();
         if(nameWithSuffix.endsWith("s") || nameWithSuffix.endsWith("z"))
@@ -732,122 +774,129 @@ public class GameLogic implements HandlesLogic {
         ArrayList<DataParser.DataMapping> mappings = DataParser.parseIncomingData(dataString);
         for(DataParser.DataMapping map : mappings){
             switch(map.keyWord){
-                case INFORM_OF_REROLL:
+                case INFORM_OF_REROLL: {
                     ui.makeToast(players[playerOrderWhoSentThis].getName() + " rerolled their dice");
-                    if(myPlayerOrder == 0)
+                    if (myPlayerOrder == 0)
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                     break;
-                case IN_GAME:
+                }
+                case IN_GAME: {
                     playersInGame++;
-                    if(playersInGame == players.length && myPlayerOrder == 0) {
+                    if (playersInGame == players.length && myPlayerOrder == 0) {
                         ui.makeToast("Building the market...");
                         addToMarket();
                         beginTurnDiceRoll(NOT_REROLL);
                     }
                     break;
-                case ADD_TO_MARKET:
-                    Establishment c = (Establishment)Deck.getCardFromCode(map.value);
+                }
+                case ADD_TO_MARKET: {
+                    Establishment c = (Establishment) Deck.getCardFromCode(map.value);
                     addToMarket(c);
                     break;
-                case BEGIN_TURN:
+                }
+                case BEGIN_TURN: {
                     resetIndicators(NOT_REROLL);
                     int oldActivePlayer = activePlayer;
                     activePlayer = Integer.parseInt(map.value);
-                    if(activePlayer == myPlayerOrder)
+                    if (activePlayer == myPlayerOrder)
                         beginTurnDiceRoll(NOT_REROLL);
                     else {
                         notifyOfNewActivePlayer(oldActivePlayer == activePlayer);
                     }
                     break;
-                case TUNA_REPLY:
+                }
+                case TUNA_REPLY: {
                     ui.makeToast("Rolling for Tuna Boat value");
-                case ROLL:
+                }
+                case ROLL: {
                     int d1 = Integer.parseInt(map.value);
                     int d2 = 0;
                     int index = mappings.indexOf(map);
                     boolean addTwo = false;
-                    if(mappings.size() > index+1){
-                        DataParser.DataMapping nextMap = mappings.get(index+1);
-                        if(nextMap.keyWord.equals("d2"))
+                    if (mappings.size() > index + 1) {
+                        DataParser.DataMapping nextMap = mappings.get(index + 1);
+                        if (nextMap.keyWord.equals("d2"))
                             d2 = Integer.parseInt(nextMap.value);
-                        if(mappings.size() > index+2){
-                            nextMap = mappings.get(index+2);
-                            if(nextMap.keyWord.equals("add2"))
+                        if (mappings.size() > index + 2) {
+                            nextMap = mappings.get(index + 2);
+                            if (nextMap.keyWord.equals("add2"))
                                 addTwo = true;
                         }
                     }
-                    if(myPlayerOrder == 0){
-                        if(map.keyWord.equals(ROLL)) {
+                    if (myPlayerOrder == 0) {
+                        if (map.keyWord.equals(ROLL)) {
                             String stringToSend = ROLL + ":" + d1 + ":d2:" + d2;
-                            originalRoll = d1+d2;
-                            if(addTwo) {
+                            originalRoll = d1 + d2;
+                            if (addTwo) {
                                 originalRoll += 2;
                                 stringToSend += ":add2:0";
                             }
                             ui.sendMessage(stringToSend, -1, activePlayer);
-                            if(d1 == d2)
+                            if (d1 == d2)
                                 rolledDoubles = true;
                             activateRestaurants();
-                        }
-                        else if(map.keyWord.equals(TUNA_REPLY)) {
+                        } else if (map.keyWord.equals(TUNA_REPLY)) {
                             ui.sendMessage(TUNA_REPLY + ":" + d1 + ":d2:" + d2, -1, playerOrderWhoSentThis);
-                            processTunaRoll(d1+d2);
+                            processTunaRoll(d1 + d2);
                         }
                     }
 
                     ui.displayDiceRoll(d1, d2);
                     break;
+                }
                 case GAIN_MONEY:
-                case LOSE_MONEY:
+                case LOSE_MONEY: {
                     boolean gain = map.keyWord.equals(GAIN_MONEY);
                     int playerAffected = Integer.parseInt(map.value.substring(1));
-                    index = mappings.indexOf(map);
-                    if(mappings.size() > index+1){
-                        DataParser.DataMapping nextMap = mappings.get(index+1);
-                        if(nextMap.keyWord.equals("$")) {
+                    int index = mappings.indexOf(map);
+                    if (mappings.size() > index + 1) {
+                        DataParser.DataMapping nextMap = mappings.get(index + 1);
+                        if (nextMap.keyWord.equals("$")) {
                             int value = Integer.parseInt(nextMap.value);
-                            if(gain)
+                            if (gain)
                                 players[playerAffected].makeMoney(value);
                             else
                                 players[playerAffected].loseMoney(value);
-                            if(townIndexBeingShown == playerAffected)
+                            if (townIndexBeingShown == playerAffected)
                                 ui.changeMoney(players[playerAffected].getMoney());
                         }
                     }
                     break;
-                case NEED_TUNA_ROLL:
-                    if(myPlayerOrder != 0){
+                }
+                case NEED_TUNA_ROLL: {
+                    if (myPlayerOrder != 0) {
                         ui.getDiceRoll(false, true, 0);
                     }
                     break;
-                case REPLY_ACTIVATE_MOVING:
-                    index = mappings.indexOf(map);
+                }
+                case REPLY_ACTIVATE_MOVING: {
+                    int index = mappings.indexOf(map);
                     int toPlayerOrder = Integer.parseInt(map.value);
                     Player p = players[toPlayerOrder];
-                    if(mappings.size() > index+1){
-                        DataParser.DataMapping nextMap = mappings.get(index+1);
-                            Establishment card = (Establishment)Deck.getCardFromCode(nextMap.keyWord);
-                            if(players[activePlayer].getCitySet().contains(card)){
-                                players[activePlayer].removeCopyOfEstablishment(card, true);
-                            }
-                            if(p.getCitySet().contains(card)){
-                                int i = p.getCitySet().indexOf(card);
-                                if(Integer.parseInt(nextMap.value) == 0)
-                                    p.getCitySet().valueAt(i).addCopy();
-                                else
-                                    p.getCitySet().valueAt(i).addRenovatedCopy();
-                            }
+                    if (mappings.size() > index + 1) {
+                        DataParser.DataMapping nextMap = mappings.get(index + 1);
+                        Establishment card = (Establishment) Deck.getCardFromCode(nextMap.keyWord);
+                        if (players[activePlayer].getCitySet().contains(card)) {
+                            players[activePlayer].removeCopyOfEstablishment(card, true);
+                        }
+                        if (p.getCitySet().contains(card)) {
+                            int i = p.getCitySet().indexOf(card);
+                            if (Integer.parseInt(nextMap.value) == 0)
+                                p.getCitySet().valueAt(i).addCopy();
                             else
-                                p.getCitySet().add(card);
-                            if(townIndexBeingShown == activePlayer || townIndexBeingShown == toPlayerOrder)
-                                displayTown(townIndexBeingShown);
+                                p.getCitySet().valueAt(i).addRenovatedCopy();
+                        } else
+                            p.getCitySet().add(card);
+                        if (townIndexBeingShown == activePlayer || townIndexBeingShown == toPlayerOrder)
+                            displayTown(townIndexBeingShown);
                     }
-                    if(myPlayerOrder == 0) {
+                    if (myPlayerOrder == 0) {
                         numCardsToPick--;
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                         activateMovingCompany(numCardsToPick);
                     }
                     break;
+                }
                 case REQUEST_ACTIVATE_MOVING:
                     activateMovingCompany(Integer.parseInt(map.value));
                     break;
@@ -855,52 +904,55 @@ public class GameLogic implements HandlesLogic {
                     selectCardCode = SELECT_PLAYER_TV;
                     ui.pickPlayer(players, myPlayerOrder, "pick player for TV Station");
                     break;
-                case REPLY_TV_STATION:
+                case REPLY_TV_STATION: {
                     selectCardCode = 0;
-                    index = mappings.indexOf(map);
+                    int index = mappings.indexOf(map);
                     int moneyGained = Integer.parseInt(map.value);
-                    if(mappings.size() > index+1) {
+                    if (mappings.size() > index + 1) {
                         DataParser.DataMapping nextMap = mappings.get(index + 1);
                         int fromIndex = Integer.parseInt(nextMap.value);
                         Player from = players[fromIndex];
                         Player to = players[activePlayer];
                         from.loseMoney(moneyGained);
                         to.makeMoney(moneyGained);
-                        if(townIndexBeingShown == activePlayer || townIndexBeingShown == fromIndex)
+                        if (townIndexBeingShown == activePlayer || townIndexBeingShown == fromIndex)
                             displayTown(townIndexBeingShown);
                     }
-                    if(myPlayerOrder == 0) {
+                    if (myPlayerOrder == 0) {
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                         checkBusinessCenter();
                     }
                     break;
-                case REQUEST_TRADE_CARD:
+                }
+                case REQUEST_TRADE_CARD: {
                     selectCardCode = SELECT_BC_MINE;
-                    Player[] pArr = new Player[]{players[myPlayerOrder]};
-                    ui.pickCard(pArr, pArr[0].getName(), "Business Center: card to give", true);
+                    Player[] me = new Player[]{players[myPlayerOrder]};
+                    ui.pickCard(me, players[myPlayerOrder].getName(), "Business Center: card to give", true);
                     break;
-                case REPLY_TRADE_CARD:
-                    index = mappings.indexOf(map);
-                    if(mappings.size() > index+2) {
+                }
+                case REPLY_TRADE_CARD: {
+                    int index = mappings.indexOf(map);
+                    if (mappings.size() > index + 2) {
                         DataParser.DataMapping nextMap = mappings.get(index + 1);
                         Player from = players[Integer.parseInt(nextMap.keyWord)];
                         String code = nextMap.value;
-                        Establishment mine = (Establishment)Deck.getCardFromCode(code);
+                        Establishment mine = (Establishment) Deck.getCardFromCode(code);
                         int i = from.getCitySet().indexOf(mine);
                         mine = from.getCitySet().valueAt(i);
 
-                        nextMap = mappings.get(index+2);
+                        nextMap = mappings.get(index + 2);
                         Player to = players[Integer.parseInt(nextMap.keyWord)];
                         code = nextMap.value;
-                        Establishment theirs = (Establishment)Deck.getCardFromCode(code);
+                        Establishment theirs = (Establishment) Deck.getCardFromCode(code);
                         i = to.getCitySet().indexOf(theirs);
                         theirs = to.getCitySet().valueAt(i);
 
-                        if(myPlayerOrder == 0)
+                        if (myPlayerOrder == 0)
                             ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                         tradeCards(from, mine, to, theirs);
                     }
                     break;
+                }
                 case REQUEST_RENO:
                     selectCardCode = SELECT_RENO;
                     ui.pickCard(players, players[myPlayerOrder].getName(), "Renovation Company", true);
@@ -913,10 +965,10 @@ public class GameLogic implements HandlesLogic {
                     }
                     finishReno(e);
                     break;
-                case REQUEST_ACTIVATE_DEMO:
+                case REQUEST_ACTIVATE_DEMO: {
                     selectCardCode = SELECT_DEMO;
-                    if(players[activePlayer].getCitySet().contains(new DemoCompany())){
-                        index = players[activePlayer].getCitySet().indexOf(new DemoCompany());
+                    if (players[activePlayer].getCitySet().contains(new DemoCompany())) {
+                        int index = players[activePlayer].getCitySet().indexOf(new DemoCompany());
                         Card card = players[activePlayer].getCitySet().valueAt(index);
                         numCardsToPick = Math.min(card.getNumAvailable(), 1);
                         int numConstructedLandmarks = players[activePlayer].getNumConstructedLandmarks();
@@ -924,34 +976,36 @@ public class GameLogic implements HandlesLogic {
                         activateDemoCompany();
                     }
                     break;
-                case REPLY_ACTIVATE_DEMO:
-                    p = players[activePlayer];
-                    Landmark landmark = (Landmark)Deck.getCardFromCode(map.value);
-                    for(Landmark l : p.getLandmarks()){
-                        if(l.equals(landmark)){
+                }
+                case REPLY_ACTIVATE_DEMO: {
+                    Player p = players[activePlayer];
+                    Landmark landmark = (Landmark) Deck.getCardFromCode(map.value);
+                    for (Landmark l : p.getLandmarks()) {
+                        if (l.equals(landmark)) {
                             l.closeForRenovation();
                             p.makeMoney(8);
-                            if(townIndexBeingShown == activePlayer)
+                            if (townIndexBeingShown == activePlayer)
                                 displayTown(activePlayer);
                             break;
                         }
                     }
-                    if(myPlayerOrder == 0) {
+                    if (myPlayerOrder == 0) {
                         numCardsToPick--;
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
-                        if(numCardsToPick == 0){
-                            if(activateForConvention)
+                        if (numCardsToPick == 0) {
+                            if (activateForConvention)
                                 beginEndOfTurn();
                             else
                                 activateMajorEstablishments();
                         }
                     }
                     break;
+                }
                 case REQUEST_CONVENTION:
                     selectCardCode = SELECT_CONVENTION;
                     if(activePlayer == myPlayerOrder) {
                         Player[] me = new Player[]{players[activePlayer]};
-                        ui.pickCard(me, me[0].getName(), "Convention Center", true);
+                        ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", true);
                     }
                     break;
                 case REPLY_CONVENTION:
@@ -960,62 +1014,65 @@ public class GameLogic implements HandlesLogic {
                     if(myPlayerOrder == 0)
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                     break;
-                case ADD_TO_CITY:
-                    if(map.value.equals("?")){
+                case ADD_TO_CITY: {
+                    Player p;
+                    if (map.value.equals("?")) {
                         selectCardCode = SELECT_BUY_CARD;
                         p = players[myPlayerOrder];
-                        ui.pickCard(market.toArray(new Establishment[market.size()]), p.getLandmarks(), p.getMoney(), p.getCitySet());
+                        ui.pickCard(market.toArray(new Establishment[market.size()]), p);
                     }
-                    else if(map.value.equals("0")){
-                        if(players[activePlayer].checkIfCardAvailable(new Airport())) {
+                    else if (map.value.equals("0")) {
+                        if (players[activePlayer].checkIfCardAvailable(new Airport())) {
                             players[activePlayer].makeMoney(10);
                             ui.makeToast(players[activePlayer].getName() + " makes $10 from Airport");
-                        }
-                        else{
+                        } else {
                             ui.makeToast(players[activePlayer].getName() + " doesn't buy anything");
                         }
-                        if(myPlayerOrder == 0){
+                        if (myPlayerOrder == 0) {
                             ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                             checkTech();
                         }
                     }
-                    else{
+                    else {
                         p = players[activePlayer];
                         final ArraySet<String> landmarkCodes = new ArraySet<>(Arrays.asList("H", "TR", "SM", "RT", "AP", "A"));
-                         ui.makeToast(p.getName() +" buys "+(Deck.getCardNameFromCode(map.value)));
-                        if(landmarkCodes.contains(map.value))
+                        ui.makeToast(p.getName() + " buys " + (Deck.getCardNameFromCode(map.value)));
+                        if (landmarkCodes.contains(map.value))
                             p.buyCard((ConstructibleLandmark) Deck.getCardFromCode(map.value));
                         else {
                             p.buyCard((Establishment) Deck.getCardFromCode(map.value));
-                            removeFromMarket((Establishment)Deck.getCardFromCode(map.value));
+                            removeFromMarket((Establishment) Deck.getCardFromCode(map.value));
                         }
-                        if(townIndexBeingShown == activePlayer)
+                        if (townIndexBeingShown == activePlayer)
                             displayTown(activePlayer);
-                        if(myPlayerOrder == 0){
+                        if (myPlayerOrder == 0) {
                             ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                             checkTech();
                         }
                     }
                     break;
-                case REQUEST_TECH_CHOICE:
+                }
+                case REQUEST_TECH_CHOICE: {
                     //TODO at the time, this is the only way for an active player to see how much is invested. Other players cant see this, so there's information asymmetry. Think of another way to show investment
-                    index = players[myPlayerOrder].getCitySet().indexOf(new TechStartup());
-                    if(index >= 0){
-                        ui.getTechChoice(((TechStartup)players[myPlayerOrder].getCitySet().valueAt(index)).getValue());
+                    int index = players[myPlayerOrder].getCitySet().indexOf(new TechStartup());
+                    if (index >= 0) {
+                        ui.getTechChoice(((TechStartup) players[myPlayerOrder].getCitySet().valueAt(index)).getValue());
                     }
                     break;
-                case REPLY_TECH_CHOICE:
-                    if(map.value.equals("y") && players[activePlayer].getCitySet().contains(new TechStartup())){
-                        index = players[activePlayer].getCitySet().indexOf(new TechStartup());
-                        ((TechStartup)players[activePlayer].getCitySet().valueAt(index)).addInvestment();
-                        if(activePlayer == townIndexBeingShown)
+                }
+                case REPLY_TECH_CHOICE: {
+                    if (map.value.equals("y") && players[activePlayer].getCitySet().contains(new TechStartup())) {
+                        int index = players[activePlayer].getCitySet().indexOf(new TechStartup());
+                        ((TechStartup) players[activePlayer].getCitySet().valueAt(index)).addInvestment();
+                        if (activePlayer == townIndexBeingShown)
                             displayTown(activePlayer);
                     }
-                    if(myPlayerOrder == 0){
+                    if (myPlayerOrder == 0) {
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
                         checkAmusementPark();
                     }
                     break;
+                }
                 default:
                     //had to do this for the leave code since its not final (couldn't make it a case)
                     if(map.keyWord.equals(leaveGameCode)){
@@ -1122,7 +1179,7 @@ public class GameLogic implements HandlesLogic {
                 }
 
             }
-            ui.pickCard(p, players[activePlayer].getName(), "Business Center: card to take", true);
+            ui.pickCard(p, players[myPlayerOrder].getName(), "Business Center: card to take", true);
         }
         else if(selectCardCode == SELECT_BC_THEIRS){
             selectedCard = card;

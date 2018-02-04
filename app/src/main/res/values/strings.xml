@@ -13,10 +13,20 @@
     <string name="nextTown">next</string>
     <string name="oneDice">one</string>
     <string name="twoDice">two</string>
-    <string name="cancelDice">view towns</string>
+    <string name="viewTowns">view towns</string>
     <string name="rollDice">roll dice</string>
     <string name="accept">accept</string>
     <string name="continuePrompt">"Press to continue"</string>
     <string name="backToPick">back to pick</string>
-    <string name="viewCities">view cities</string>
+    <string name="invest">investment: </string>
+    <string name="coinImage">coin icon</string>
+
+    <string name="cHall">city hall icon</string>
+    <string name="harbor">harbor icon</string>
+    <string name="tStation">train station icon</string>
+    <string name="mall">mall icon</string>
+    <string name="aPark">amusement park icon</string>
+    <string name="rTower">radio tower icon</string>
+    <string name="airport">airport icon</string>
+
 </resources>

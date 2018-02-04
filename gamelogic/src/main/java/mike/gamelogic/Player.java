@@ -4,11 +4,14 @@ package mike.gamelogic;
 
 import android.support.v4.util.ArraySet;
 
+import java.util.Arrays;
+
 import mike.cards.Airport;
 import mike.cards.AmusementPark;
 import mike.cards.Bakery;
 import mike.cards.BusinessCenter;
 import mike.cards.Cafe;
+import mike.cards.CardInterface;
 import mike.cards.CityHall;
 import mike.cards.ConstructibleLandmark;
 import mike.cards.ConventionCenter;
@@ -131,6 +134,7 @@ public class Player implements HasCards{
         return myCity;
     }
 
+    @Override
     public int getMoney(){
         return money;
     }
@@ -171,5 +175,47 @@ public class Player implements HasCards{
                 myConstructedLandmarks++;
         }
         return myConstructedLandmarks;
+    }
+
+    Landmark[] getMyConstructedLandmarks(){
+        int found = 0;
+        Landmark[] constructed = new Landmark[myLandmarks.length];
+        for(int i = 1; i < myLandmarks.length; i++){
+            if(myLandmarks[i].getNumAvailable() > 0 ){
+                constructed[found] = myLandmarks[i];
+                found++;
+            }
+        }
+        return Arrays.copyOf(constructed, found);
+    }
+
+    public CardInterface[] mergeLandmarksAndMarket(Establishment[] market){
+        int landmarksSize = 0;
+        for(int i = 1; i < myLandmarks.length; i++){
+            Landmark card = myLandmarks[i];
+            if(card.getNumAvailable() == 0)
+                landmarksSize++;
+        }
+
+        int marketLength = 0;
+        if(market != null)
+            marketLength = market.length;
+        CardInterface[] cards = new CardInterface[marketLength + landmarksSize];
+
+        int cardsIndex = 0;
+        if(market != null) {
+            for (CardInterface card : market) {
+                cards[cardsIndex] = card;
+                cardsIndex++;
+            }
+        }
+        for(int j = 1; j < myLandmarks.length; j++){
+            Landmark card = myLandmarks[j];
+            if(card.getNumAvailable() == 0) {
+                cards[cardsIndex] = card;
+                cardsIndex++;
+            }
+        }
+        return cards;
     }
 }

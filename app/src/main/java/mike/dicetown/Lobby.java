@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -12,8 +13,6 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
-import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -31,7 +30,6 @@ import java.util.ArrayList;
 import mike.gamelogic.DataParser;
 import mike.socketthreading.SocketService;
 
-
 /**
  * Created by mike on 7/11/2017.
  * the pre-game lobby where all players must ready-up before the host may start
@@ -43,11 +41,14 @@ public class Lobby extends AppCompatActivity{
     public final static String booleanExtraKeyHost = "host";
     /** One of the extras that are checked when creating this activity. name of the town*/
     public final static String stringExtraKeyName = "townName";
+    /** optional extra thats checked when creating this activity. indicate IP of host*/
+    public final static String stringOptionalExtraKeyIP = "IP";
     private String myTownName;
     private int myPlayerOrder;
 
     private boolean host;
     private boolean moveToGame = false;
+    private boolean orientationChanged;
     private String hostIP = null;
     private ArrayList<PlayerReadyContainer> allPlayers;
 
@@ -58,8 +59,8 @@ public class Lobby extends AppCompatActivity{
             host = extras.getBoolean(booleanExtraKeyHost, false);
             myTownName = extras.getString(stringExtraKeyName, "a town has no name");
             //player is joining a game. hostIP has been checked before leaving the mainMenu
-            if(extras.containsKey("IP"))
-                hostIP = extras.getString("IP");
+            if(extras.containsKey(stringOptionalExtraKeyIP))
+                hostIP = extras.getString(stringOptionalExtraKeyIP);
             else
                 displayHostIP();
         }
@@ -138,21 +139,29 @@ public class Lobby extends AppCompatActivity{
         allPlayers.ensureCapacity(playerOrder);
         allPlayers.add(playerOrder, new PlayerReadyContainer(townName));
         //The left column is for the player's town name
+        int height = addNameToList(townName, playerOrder);
+        //the right column is for the player's ready status
+        addIconToList(townName, playerOrder, height);
+    }
+
+    //returns the height of the TextView
+    private int addNameToList(String townName, int playerOrder){
         TextView name = new TextView(getApplicationContext());
         name.setTextSize(20);
         name.setText(townName);
         name.setTextColor(Color.BLACK);
         //I store the text height because I want the icons to be as tall (and wide) as the corresponding text
         name.measure(0,0);
-        int desiredIconSize = name.getMeasuredHeight();
         LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
         layout.addView(name, playerOrder);
+        return name.getMeasuredHeight();
+    }
 
-        //the right column is for the player's ready status
+    private void addIconToList(String townName, int playerOrder, int desiredIconSize){
         ImageView image = allPlayers.get(playerOrder).readyIcon;
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(desiredIconSize, desiredIconSize);
         image.setLayoutParams(params);
-        layout = (LinearLayout)findViewById(R.id.lobbyIconLayout);
+        LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyIconLayout);
         layout.addView(image, playerOrder);
 
         //the host is always ready from the momeny they join
@@ -168,7 +177,6 @@ public class Lobby extends AppCompatActivity{
     }
 
     private void removePlayerFromList(int playerOrder){
-
         allPlayers.remove(playerOrder);
         //change my playerOrder if its greater than the order of the player who left
         if(myPlayerOrder > playerOrder)
@@ -183,7 +191,6 @@ public class Lobby extends AppCompatActivity{
                 b.setText(R.string.lobbyStartGame);
             else
                 b.setText("");
-
         }
     }
 
@@ -201,7 +208,7 @@ public class Lobby extends AppCompatActivity{
     }
 
     //only called if the user is a game host
-    public void displayHostIP(){
+    private void displayHostIP(){
         hostIP = getLocalIpAddress();
         TextView textView = (TextView) findViewById(R.id.ipAddress);
 
@@ -213,17 +220,18 @@ public class Lobby extends AppCompatActivity{
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_lobby_layout);
+        orientationChanged = false;
         getExtras();
         //don't bother starting the service if there is no host IP
         if(!hostIP.equals("error getting address"))
-            startService();
+            startSocketService();
+        //TODO maybe boot a host from their lobby if I can't get their address
     }
 
-    private void startService(){
+    private void startSocketService(){
         Intent intent = new Intent(Lobby.this, SocketService.class);
         intent.putExtra(SocketService.INTENT_HOST_BOOLEAN, host);
         intent.putExtra(SocketService.INTENT_HOST_IP_STRING, hostIP);
-        intent.putExtra(SocketService.INTENT_FIRST_BIND, true);
         //binding starts the service, and I'd rather bind since I want to communicate with it
         doBindService(intent);
     }
@@ -248,8 +256,14 @@ public class Lobby extends AppCompatActivity{
     @Override
     public void onDestroy(){
         super.onDestroy();
-        if(!moveToGame)
+        if(isFinishing() && !moveToGame)
             stopService();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig){
+        super.onConfigurationChanged(newConfig);
+        orientationChanged = true;
     }
 
     private void stopService(){
@@ -325,7 +339,8 @@ public class Lobby extends AppCompatActivity{
         else
             mIntent = intent;
         //I start the service first, otherwise the service is destroyed when unbound, which I don't want to do
-        startService(mIntent);
+        if(!orientationChanged)
+            startService(mIntent);
         // Establish a connection with the service.  We use an explicit
         // class name because we want a specific service implementation that
         // we know will be running in our own process (and thus won't be
@@ -359,7 +374,7 @@ public class Lobby extends AppCompatActivity{
                         activity.handleIncomingData((String)msg.obj);
                         break;
                     case SocketService.MSG_CANT_JOIN_GAME:
-                        Toast.makeText(activity, "Could not connect to host", Toast.LENGTH_SHORT).show();
+                        activity.makeToast("Could not connect to host");
                         activity.onBackPressed();
                         break;
                     default:
@@ -369,23 +384,21 @@ public class Lobby extends AppCompatActivity{
         }
     }
 
-
     /**
      * key for data indicating that readiness should be changed
      */
     private final String CHANGE_READINESS = "CR";
+    /*
+     * key for data indicating the player's name. The key should be appended by the player order
+     */
+    final String PLAYER_NAME = "PN";
+    /*
+     * key for data indicating that a player's name has been changed due to conflicts
+     */
+    final String CHANGE_NAME = "CN";
 
     //I use the playerOrder who sent it in case I must reply to that specific user (or all users but that one)
-    private void handleIncomingData(String dataString){
-        /*
-         * key for data indicating that a player's name has been changed due to conflicts
-         */
-        final String CHANGE_NAME = "CN";
-        /*
-         * key for data indicating the player's name. The key should be appended by the player order
-         */
-        final String PLAYER_NAME = "PN";
-
+    public void handleIncomingData(String dataString){
         ArrayList<DataParser.DataMapping> list = DataParser.parseIncomingData(dataString);
         for(DataParser.DataMapping mapping : list){
             //host telling players what their player order is. Reply with the name of this user's town
@@ -402,36 +415,14 @@ public class Lobby extends AppCompatActivity{
                 myTownName = mapping.value;
                 LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
                 TextView tv = (TextView)layout.getChildAt(myPlayerOrder);
-                tv.setText(mapping.value);
+                tv.setText(myTownName);
+                makeToast("Name changed to "+myTownName);
             }
             //players telling you what their name is
             else if(mapping.keyWord.contains(PLAYER_NAME)){
                 int order = DataParser.extractInt(mapping.keyWord);
                 String name = mapping.value;
-                if(host){
-                    name = checkName(name);
-                }
-                addPlayerToList(name,order);
-                if(!host && order == myPlayerOrder-1)
-                    addPlayerToList(myTownName, myPlayerOrder);
-                if(host){
-                    //send the new name to all existing players
-                    mBoundService.sendData(PLAYER_NAME+order+':'+name, -1, order);
-                    //send existing player names to the new player
-                    for(int i = 0; i < order; i++){
-                        mBoundService.sendData(PLAYER_NAME+i+':'+allPlayers.get(i).townName, order, -1);
-                        //tell the new player who is ready when they join (since it defaults to not ready)
-                        if(i > 0 && allPlayers.get(i).ready)
-                            mBoundService.sendData(CHANGE_READINESS+':'+i, order, -1);
-                    }
-                    if(!name.equals(mapping.value)){
-                        mBoundService.sendData(CHANGE_NAME+':'+name, order, -1);
-                    }
-                }
-                //all players know the host (with key 0) is ready, so they change host's readiness automatically
-                else if(!allPlayers.get(0).ready){
-                    changeReadiness(0);
-                }
+                playerNameMessage(name, order);
             }
             else if(mapping.keyWord.contains(CHANGE_READINESS)){
                 int order = DataParser.extractInt(mapping.value);
@@ -445,24 +436,59 @@ public class Lobby extends AppCompatActivity{
                 goToGame();
             }
             else if(mapping.keyWord.equals(SocketService.LEAVE_GAME)){
-                Log.e("data", dataString);
-                int playerOrderLeaving = Integer.parseInt(mapping.value);
-                if(allPlayers.get(playerOrderLeaving) != null) {
-                    if (playerOrderLeaving == 0) {
-                        Toast.makeText(this, "Host left game", Toast.LENGTH_LONG).show();
-                        onBackPressed();
-                    }
-                    else {
-                        String name = allPlayers.get(playerOrderLeaving).townName;
-                        mBoundService.removePlayer(playerOrderLeaving);
-                        removePlayerFromList(playerOrderLeaving);
+                leaveGameMessage(Integer.parseInt(mapping.value), dataString);
+            }
+        }
+    }
 
-                        if (myPlayerOrder == 0) {
-                            mBoundService.sendData(dataString, -1, -1);
-                        }
-                        Toast.makeText(this, name + " left the game", Toast.LENGTH_LONG).show();
-                    }
+    public void makeToast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private void playerNameMessage(String name, int order){
+        String newName = name;
+        if(host){
+            newName = checkName(name);
+        }
+        addPlayerToList(newName,order);
+        if(!host && order == myPlayerOrder-1)
+            addPlayerToList(myTownName, myPlayerOrder);
+        if(host){
+            //send the new name to all existing players
+            mBoundService.sendData(PLAYER_NAME+order+':'+newName, -1, order);
+            //send existing player names to the new player
+            for(int i = 0; i < order; i++){
+                mBoundService.sendData(PLAYER_NAME+i+':'+allPlayers.get(i).townName, order, -1);
+                //tell the new player who is ready when they join (since it defaults to not ready)
+                if(i > 0 && allPlayers.get(i).ready)
+                    mBoundService.sendData(CHANGE_READINESS+':'+i, order, -1);
+            }
+            //newName will be changed by now, but I'm checking regardless
+            if(newName != null && !newName.equals(name)){
+                mBoundService.sendData(CHANGE_NAME+':'+newName, order, -1);
+            }
+        }
+        //all players know the host (with key 0) is ready, so they change host's readiness automatically
+        else if(!allPlayers.get(0).ready){
+            changeReadiness(0);
+        }
+    }
+
+    private void leaveGameMessage(int playerOrderLeaving, String dataString){
+        if(allPlayers.get(playerOrderLeaving) != null) {
+            if (playerOrderLeaving == 0) {
+                makeToast("Host left game");
+                onBackPressed();
+            }
+            else {
+                String name = allPlayers.get(playerOrderLeaving).townName;
+                mBoundService.removePlayer(playerOrderLeaving);
+                removePlayerFromList(playerOrderLeaving);
+
+                if (myPlayerOrder == 0) {
+                    mBoundService.sendData(dataString, -1, -1);
                 }
+                makeToast(name + " left the game");
             }
         }
     }
@@ -497,6 +523,9 @@ public class Lobby extends AppCompatActivity{
             else
                 break;
         }
-        return name+s;
+        //I want to make sure that the new name isn't also taken
+        return checkName(name+s);
     }
+
+
 }

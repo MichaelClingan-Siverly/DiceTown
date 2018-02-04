@@ -6,6 +6,7 @@
     android:background="@drawable/background"
     android:id="@+id/inGameLayout">
 
+    <!-- the infoBar contains the city being viewed as well as that player's money -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -36,16 +37,19 @@
             android:layout_toStartOf="@id/coinAmountText" />
     </RelativeLayout>
 
+    <!-- The part of the screen that the player interacts with -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_above="@id/infoBar"
         android:id="@+id/activeScreen">
-
         <LinearLayout
             android:id="@+id/landmarkBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_alignParentStart="true"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_above="@id/arrowBar"
             style="?android:attr/buttonBarStyle">
             <ImageButton
                 android:contentDescription="@string/cHall"
@@ -102,12 +106,13 @@
             android:id="@+id/townScroll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/landmarkBar"
-            android:layout_above="@+id/arrowBar">
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@id/landmarkBar"
+            android:layout_above="@id/arrowBar">
             <GridLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:columnCount="4"
+                android:columnCount="6"
                 android:id="@+id/establishmentGrid"
                 android:layout_gravity="fill_horizontal">
             </GridLayout>

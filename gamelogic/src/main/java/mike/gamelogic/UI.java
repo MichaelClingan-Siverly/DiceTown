@@ -33,17 +33,17 @@ public interface UI {
     /**
      * Certain cards cause the user to pick from different sets of cards.
      * @param cardOwners arrays of HasCards, so this can display cards arranged by player name
-     * @param name name of this user (for things like determining whether to give a renovated card or non-renovated one)
+     * @param myName name of this user (for things like determining whether to give a renovated card or non-renovated one)
      */
-    void pickCard(HasCards cardOwners[], String name, String message, boolean nonMajor);
+    void pickCard(HasCards cardOwners[], String myName, String message, boolean nonMajor);
 
     /**
      * Allows the user to pick a card with respect to their money owned.
      * Unlike the other pickCard, this also allows a user to not select a card.
      * See other pickCard for more info
-     * @param money amount of player's money. A card will not be pickable if it costs more than this
+     * @param player the player who is buying from the market
      */
-    void pickCard(Establishment[] market, Landmark[]myLandmarks, int money, ArraySet<Establishment> myCity);
+    void pickCard(Establishment[] market, final Player player);
 
     /**
      * Display all the information a user may want out of a town screen
@@ -55,7 +55,7 @@ public interface UI {
      */
     void displayTown(String townName, int money, Establishment[] cityCards, Landmark[] landmarks, boolean myTown);
 
-    void pickPlayer(Player[] players, int myIndex, String title);
+    void pickPlayer(HasCards[] players, int myIndex, String title);
 
     /**
      * sends a message across the socket(s)
@@ -81,4 +81,10 @@ public interface UI {
     void askIfReroll(final int d1, final int d2);
 
     void leaveGame(int playerOrder);
+
+    /**
+     * Let the UI know that the logic is finished being created and attached
+     * so that it may continue with its creation process
+     */
+    void finishAttachingLogic();
 }

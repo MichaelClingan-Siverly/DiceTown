@@ -3,14 +3,12 @@ package mike.socketthreading;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
-import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
-import android.widget.Toast;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -18,7 +16,7 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
 
-public class SocketService extends Service implements ReceivesNewConnections {
+public class SocketService extends Service implements ReceivesNewConnections{
     private Messenger client;
     private AcceptConnections serverListenerTask = null;
     private GameClientConnection connections = null;
@@ -124,8 +122,6 @@ public class SocketService extends Service implements ReceivesNewConnections {
      */
     public final static String INTENT_HOST_IP_STRING = "IP";
 
-    public final static String INTENT_FIRST_BIND = "init";
-
     private void checkIntent(Intent intent){
         boolean host = intent.getBooleanExtra(INTENT_HOST_BOOLEAN, false);
         connections = new GameClientConnection(new Messenger(new IncomingHandler(SocketService.this)), host);
@@ -162,8 +158,8 @@ public class SocketService extends Service implements ReceivesNewConnections {
     public final static int MSG_CANT_JOIN_GAME = 2;
 
     /**
-     * Handler of incoming messages from clients.
-     * Allows other threads to interact with this Service
+     * Handles incoming messages from the Sockets and forwards them to the bound Activities.
+     * Allows other threads (ones listening to Sockets) to interact with this Service
      */
     private static class IncomingHandler extends Handler {
         private final WeakReference<SocketService> mService;
@@ -189,7 +185,7 @@ public class SocketService extends Service implements ReceivesNewConnections {
         }
     }
 
-    //Because Sockets can't be made on the main thread
+    //Because Sockets can't be made on the main thread: Used to create client sockets
     private class CreateSocketTask implements Runnable{
         String address;
 

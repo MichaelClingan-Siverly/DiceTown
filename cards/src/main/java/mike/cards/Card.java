@@ -7,29 +7,32 @@ import android.support.annotation.NonNull;
  * provides basic functionality for all cards
  */
 
-public abstract class Card implements CardInterface, Comparable<Card>{
-    protected int numCopies = 1;
-    protected int numRenovated = 0;
+public abstract class Card implements CardInterface{
+    int numCopies = 1;
+    int numRenovated = 0;
 
+    @Override
     public int getNumCopies(){
         return numCopies;
     }
-
+    @Override
     public void closeForRenovation(){
         numRenovated = numCopies;
     }
+    @Override
     public void finishRenovation(){
         numRenovated = 0;
     }
+    @Override
     public int getNumAvailable(){
         return numCopies-numRenovated;
     }
 
-    public abstract int getCost();
-    //cards supply their own image, so I don't have to figure it out with tons of instanceof when drawing them
-    public abstract int getFullImageId();
-    //full image does not show how many copies or if a card is under construction, plus its larger
-    public abstract int getGridImageId();
+//    public abstract int getCost();
+//    //cards supply their own image, so I don't have to figure it out with tons of instanceof when drawing them
+//    public abstract int getFullImageId();
+//    //full image does not show how many copies or if a card is under construction, plus its larger
+//    public abstract int getGridImageId();
 
     //I'm pretty lazy with overriding these in the subclasses, because there should only be
     // one of each class in each structure.
@@ -41,10 +44,11 @@ public abstract class Card implements CardInterface, Comparable<Card>{
     abstract public boolean equals(Object o);
 
     @Override
-    public int compareTo(@NonNull Card c){
+    public int compareTo(@NonNull CardInterface c){
         return Integer.compare(hashCode(), c.hashCode());
     }
 
+    @Override
     public int getNumRenovatedResId(){
         switch(numRenovated){
             case 1:
@@ -63,6 +67,7 @@ public abstract class Card implements CardInterface, Comparable<Card>{
                 return R.drawable.transparent;
         }
     }
+    @Override
     public int getNumOwnedResId(){
         switch(numCopies){
             case 2:
