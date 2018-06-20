@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class Forest extends Establishment implements NaturalResource {
+public class Forest extends LowEstablishment implements NaturalResource {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

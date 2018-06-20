@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.v4.util.ArraySet;
-import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,6 +19,8 @@ import mike.cards.DemoCompany;
 import mike.cards.Establishment;
 import mike.cards.Harbor;
 import mike.cards.Landmark;
+import mike.cards.LowEstablishment;
+import mike.cards.MajorEstablishment;
 import mike.cards.MovingCompany;
 import mike.cards.Park;
 import mike.cards.Publisher;
@@ -46,6 +47,7 @@ public class GameLogic extends HandlesLogic {
     private int townIndexBeingShown;
     private Deck deck;
     private ArraySet<Establishment> market;
+    private final int marketTownIndex = -1;
     //only really used by the host
     private int playersInGame = 0;
     private int activePlayer = 0;
@@ -129,19 +131,63 @@ public class GameLogic extends HandlesLogic {
         return myPlayerOrder;
     }
 
-    //like the physical game, there is a chance that the initial market will have lots of 2-dice cards...
-    private void addToMarket(){
-        while(true){
-            Establishment card = deck.draw();
-            if(card == null)
-                return;
+    private void attemptDrawingCard() {
+        int[] marketPileUniques = getNumUniqueCardsPerMarketPile();
+        boolean depletedMajor = false;
+        boolean depletedLow = false;
+        boolean depletedHigh = false;
+        while (true) {
+            Establishment card;
 
-            addToMarket(card);
-            ui.sendMessage(ADD_TO_MARKET+":"+ card.getCode(), -1, -1);
-            if(market.size() == 10 || deck.isEmpty())
+            if(!depletedLow && marketPileUniques[1] < 5){
+                card = deck.draw(Deck.pileCodeLow);
+                if(card == null)
+                    depletedLow = true;
+                else if(!market.contains(card))
+                    marketPileUniques[1]++;
+            }
+            else if(!depletedHigh && marketPileUniques[2] < 5){
+                card = deck.draw(Deck.pileCodeHigh);
+                if(card == null)
+                    depletedHigh = true;
+                else if(!market.contains(card))
+                    marketPileUniques[2]++;
+            }
+            else{
+                card = deck.draw(Deck.pileCodeMajor);
+                if(card == null)
+                    depletedMajor = true;
+                else if(!market.contains(card))
+                    marketPileUniques[0]++;
+            }
+
+            if(card != null) {
+                addToMarket(card);
+                ui.sendMessage(ADD_TO_MARKET + ":" + card.getCode(), -1, -1);
+            }
+            if (market.size() == 12 || depletedMajor && depletedLow && depletedHigh)
                 return;
         }
     }
+
+    /**
+     * checks market to do what its name implies...
+     * @return index 0 is num major establishments, 1 is num low (dice roll) establishments,
+     * 2 is num high establishments
+     */
+    private int[] getNumUniqueCardsPerMarketPile(){
+        int[] arr = new int[]{0,0,0};
+        for(Establishment e : market){
+            if(e instanceof MajorEstablishment)
+                arr[0]++;
+            else if(e instanceof LowEstablishment)
+                arr[1]++;
+            else
+                arr[2]++;
+        }
+        return arr;
+    }
+
     private void addToMarket(Establishment card){
         if(card == null)
             return;
@@ -162,7 +208,7 @@ public class GameLogic extends HandlesLogic {
             else {
                 market.removeAt(index);
                 if(myPlayerOrder == 0)
-                    addToMarket();
+                    attemptDrawingCard();
             }
         }
     }
@@ -194,7 +240,8 @@ public class GameLogic extends HandlesLogic {
                 if (radioRerollAvailable) {
                     radioRerollAvailable = false;
                     ui.askIfReroll(d1, d2);
-                } else
+                }
+                else
                     radioReply(false, d1, d2);
             }
             else {
@@ -324,7 +371,7 @@ public class GameLogic extends HandlesLogic {
             int movingIndex = players[activePlayer].getCitySet().indexOf(new MovingCompany());
             numCardsToPick = players[activePlayer].getCitySet().valueAt(movingIndex).getNumAvailable();
             if(myPlayerOrder == activePlayer)
-                activateMovingCompany(numCardsToPick);
+                activateMovingCompany();
             else
                 ui.sendMessage(REQUEST_ACTIVATE_MOVING+":"+numCardsToPick, activePlayer, -1);
         }
@@ -353,8 +400,6 @@ public class GameLogic extends HandlesLogic {
         ui.pickCard(players[myPlayerOrder].getMyConstructedLandmarks(), players[myPlayerOrder].getName());
     }
 
-
-
     private int[] getIndustryMoneyGained(int tunaRoll){
         int[] moneyGained = new int[players.length];
         //for each player check the proper establishments and make money
@@ -378,19 +423,24 @@ public class GameLogic extends HandlesLogic {
         return false;
     }
 
-    private void activateMovingCompany(int numToActivate){
+    private void activateMovingCompany(){
         selectCardCode = SELECT_CARD_MOVE;
-        numCardsToPick = numToActivate;
+        if(numCardsToPick == 0){
+            int movingCompanyIndex = players[activePlayer].getCitySet().indexOf(new MovingCompany());
+            if(movingCompanyIndex >= 0) {
+                players[activePlayer].getCitySet().valueAt(movingCompanyIndex).finishRenovation();
+                if(townIndexBeingShown == activePlayer)
+                    displayTown(townIndexBeingShown);
+            }
+        }
         if(numCardsToPick > 0 && activePlayer == myPlayerOrder){
             Player[] pArray = new Player[1];
             pArray[0] = players[myPlayerOrder];
             ui.pickCard(pArray, players[myPlayerOrder].getName(), "Moving Company", true);
         }
         else if(myPlayerOrder == 0){
-            if(activateForConvention) {
-                activateForConvention = false;
+            if(activateForConvention)
                 beginEndOfTurn();
-            }
             else
                 activateMajorEstablishments();
         }
@@ -467,7 +517,7 @@ public class GameLogic extends HandlesLogic {
                 if(activePlayer == 0 && myPlayerOrder == 0) {
                     activateForConvention = true;
                     Player[] me = new Player[]{players[0]};
-                    ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", true);
+                    ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", false);
                 }
                 else
                     ui.sendMessage(REQUEST_CONVENTION+":0", activePlayer, -1);
@@ -627,29 +677,31 @@ public class GameLogic extends HandlesLogic {
     }
 
     private void activateForConvention(Establishment card){
-        activateForConvention = true;
-        numCardsToPick = 1;
         if(players[activePlayer].getCitySet().contains(card)){
+            activateForConvention = true;
             int index = players[activePlayer].getCitySet().indexOf(card);
             Establishment e = players[activePlayer].getCitySet().valueAt(index);
             //if all are being renovated, activating one will only finish its renovation
             if(e.getNumAvailable() == 0){
-                e.removeCopy();
-                e.addCopy();
+                e.finishRenovation();
             }
-            else if(e.getCode().equals("MC")){
+            else if(e.getCode().equals("MC")){ //moving company
+                numCardsToPick = e.getNumAvailable();
                 if(activePlayer == 0 && myPlayerOrder == 0)
-                    activateMovingCompany(1);
+                    activateMovingCompany();
                 else
-                    ui.sendMessage(REQUEST_ACTIVATE_MOVING+":"+numCardsToPick, activePlayer, -1);
+                    ui.sendMessage(REQUEST_ACTIVATE_MOVING + ":" + numCardsToPick, activePlayer, -1);
             }
-            else if(e.getCode().equals("DC")){
+            else if(e.getCode().equals("DC")){ //demo company
+                numCardsToPick = e.getNumAvailable();
                 if(myPlayerOrder == activePlayer)
                     activateDemoCompany();
-                else
+                else{
+
                     ui.sendMessage(REQUEST_ACTIVATE_DEMO+":"+numCardsToPick, activePlayer, -1);
+                }
             }
-            else if(e.getCode().equals("TB")){
+            else if(e.getCode().equals("TB")){ //tuna boat
                 if(activePlayer == myPlayerOrder){
                     ui.getDiceRoll(false, true, -1);
                 }
@@ -665,6 +717,8 @@ public class GameLogic extends HandlesLogic {
                 beginEndOfTurn();
             }
         }
+        else
+            beginEndOfTurn();
     }
 
     private void moneyStuff(int playerOrder, int amount, boolean loseMoney){
@@ -680,7 +734,12 @@ public class GameLogic extends HandlesLogic {
 
     //1st step of end of turn buy
     private void beginEndOfTurn(){
-        //checks City hall
+        //if ConventionCenter was activated, it gets returned to the market
+        if(activateForConvention) {
+            returnActivePlayersConvention();
+            ui.sendMessage(RETURN_TO_MARKET+":"+activePlayer, -1, -1);
+        }
+        //checks City Hall
         if(players[activePlayer].getMoney() == 0){
             players[activePlayer].makeMoney(1);
             ui.makeToast("Gaining money from City Hall");
@@ -688,6 +747,16 @@ public class GameLogic extends HandlesLogic {
         }
         if(myPlayerOrder == 0){
             endOfTurnBuy();
+        }
+    }
+
+    private void returnActivePlayersConvention(){
+        Establishment conv = new ConventionCenter();
+        if(players[activePlayer].getCitySet().contains(conv)){
+            players[activePlayer].getCitySet().remove(new ConventionCenter());
+            addToMarket(conv);
+            if(townIndexBeingShown == activePlayer)
+                displayTown(activePlayer);
         }
     }
 
@@ -784,7 +853,7 @@ public class GameLogic extends HandlesLogic {
                     playersInGame++;
                     if (playersInGame == players.length && myPlayerOrder == 0) {
                         ui.makeToast("Building the market...");
-                        addToMarket();
+                        attemptDrawingCard();
                         beginTurnDiceRoll(NOT_REROLL);
                     }
                     break;
@@ -794,15 +863,20 @@ public class GameLogic extends HandlesLogic {
                     addToMarket(c);
                     break;
                 }
+                case RETURN_TO_MARKET: {
+                    returnActivePlayersConvention();
+                    if(myPlayerOrder == 0)
+                        ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
+                    break;
+                }
                 case BEGIN_TURN: {
                     resetIndicators(NOT_REROLL);
                     int oldActivePlayer = activePlayer;
                     activePlayer = Integer.parseInt(map.value);
                     if (activePlayer == myPlayerOrder)
                         beginTurnDiceRoll(NOT_REROLL);
-                    else {
+                    else
                         notifyOfNewActivePlayer(oldActivePlayer == activePlayer);
-                    }
                     break;
                 }
                 case TUNA_REPLY: {
@@ -819,8 +893,11 @@ public class GameLogic extends HandlesLogic {
                             d2 = Integer.parseInt(nextMap.value);
                         if (mappings.size() > index + 2) {
                             nextMap = mappings.get(index + 2);
-                            if (nextMap.keyWord.equals("add2"))
+                            if (nextMap.keyWord.equals("add2")){
                                 addTwo = true;
+                                ui.makeToast(players[activePlayer].getName()
+                                        + " used Wharf to add 2 to their roll");
+                            }
                         }
                     }
                     if (myPlayerOrder == 0) {
@@ -835,12 +912,33 @@ public class GameLogic extends HandlesLogic {
                             if (d1 == d2)
                                 rolledDoubles = true;
                             activateRestaurants();
-                        } else if (map.keyWord.equals(TUNA_REPLY)) {
+                        }
+                        else if (map.keyWord.equals(TUNA_REPLY)) {
                             ui.sendMessage(TUNA_REPLY + ":" + d1 + ":d2:" + d2, -1, playerOrderWhoSentThis);
                             processTunaRoll(d1 + d2);
                         }
                     }
+                    else{
+                        for(int playerIndex = 0; playerIndex < players.length; playerIndex++){
+                            Player p = players[playerIndex];
+                            int activationCode;
+                            if(playerIndex == activePlayer)
+                                activationCode = ActivationVisitor.ACTIVATE_RESTAURANTS;
+                            else
+                                activationCode = ActivationVisitor.ACTIVATE_INDUSTRY;
+                            //finish potential renovations, since the host doesn't tell clients that
+                            ActivationVisitor v = new ActivationVisitor(d1+d2, players, activePlayer, playerIndex, activationCode, 0);
+                            for(Establishment e : p.getCity()) {
+                                v.visit(e);
+                                if(playerIndex == activePlayer) {
+                                    if(e instanceof MovingCompany || e instanceof DemoCompany)
+                                        e.finishRenovation();
 
+                                }
+                            }
+                            displayTown(townIndexBeingShown);
+                        }
+                    }
                     ui.displayDiceRoll(d1, d2);
                     break;
                 }
@@ -885,20 +983,24 @@ public class GameLogic extends HandlesLogic {
                                 p.getCitySet().valueAt(i).addCopy();
                             else
                                 p.getCitySet().valueAt(i).addRenovatedCopy();
-                        } else
+                        }
+                        else if(card != null){
+                            card.closeForRenovation();
                             p.getCitySet().add(card);
+                        }
                         if (townIndexBeingShown == activePlayer || townIndexBeingShown == toPlayerOrder)
                             displayTown(townIndexBeingShown);
                     }
                     if (myPlayerOrder == 0) {
                         numCardsToPick--;
                         ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
-                        activateMovingCompany(numCardsToPick);
+                        activateMovingCompany();
                     }
                     break;
                 }
                 case REQUEST_ACTIVATE_MOVING:
-                    activateMovingCompany(Integer.parseInt(map.value));
+                    numCardsToPick = Integer.parseInt(map.value);
+                    activateMovingCompany();
                     break;
                 case REQUEST_TV_STATION:
                     selectCardCode = SELECT_PLAYER_TV;
@@ -1005,7 +1107,7 @@ public class GameLogic extends HandlesLogic {
                     selectCardCode = SELECT_CONVENTION;
                     if(activePlayer == myPlayerOrder) {
                         Player[] me = new Player[]{players[activePlayer]};
-                        ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", true);
+                        ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", false);
                     }
                     break;
                 case REPLY_CONVENTION:
@@ -1053,7 +1155,6 @@ public class GameLogic extends HandlesLogic {
                     break;
                 }
                 case REQUEST_TECH_CHOICE: {
-                    //TODO at the time, this is the only way for an active player to see how much is invested. Other players cant see this, so there's information asymmetry. Think of another way to show investment
                     int index = players[myPlayerOrder].getCitySet().indexOf(new TechStartup());
                     if (index >= 0) {
                         ui.getTechChoice(((TechStartup) players[myPlayerOrder].getCitySet().valueAt(index)).getValue());
@@ -1119,9 +1220,13 @@ public class GameLogic extends HandlesLogic {
     }
 
     private void displayTown(int playerIndex){
-        Player p = players[playerIndex];
         townIndexBeingShown = playerIndex;
-        ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+        if(townIndexBeingShown == marketTownIndex)
+            ui.displayTown("market", players[myPlayerOrder].getMoney(), market.toArray(new Establishment[market.size()]), new Landmark[0], false);
+        else {
+            Player p = players[playerIndex];
+            ui.displayTown(p.getName(), p.getMoney(), p.getCity(), p.getLandmarks(), townIndexBeingShown == myPlayerOrder);
+        }
     }
 
     @Override
@@ -1151,11 +1256,8 @@ public class GameLogic extends HandlesLogic {
         if(!ui.showDialog()) {
             if (townIndexBeingShown != myPlayerOrder)
                 displayTown(myPlayerOrder);
-            else {
-                //no town is being shown (the market is not a town, but it is displayed like one)
-                ui.displayTown("market", players[myPlayerOrder].getMoney(), market.toArray(new Establishment[market.size()]), new Landmark[0], false);
-                townIndexBeingShown = -1;
-            }
+            else
+                displayTown(marketTownIndex); //market is not a town, but it is displayed like one
         }
     }
 
@@ -1200,6 +1302,12 @@ public class GameLogic extends HandlesLogic {
             card.closeForRenovation();
             Player p = players[activePlayer];
             p.makeMoney(8);
+            //I need to finish my renovation before displaying the town
+            if(numCardsToPick == 0 && myPlayerOrder == 0) {
+                //when demo is all done, finish any renovations and proceed
+                int demoIndex = p.getCitySet().indexOf(new DemoCompany());
+                p.getCitySet().valueAt(demoIndex).finishRenovation();
+            }
             if(townIndexBeingShown == activePlayer)
                 displayTown(activePlayer);
             if(numCardsToPick == 0 && myPlayerOrder == 0) {
@@ -1279,6 +1387,7 @@ public class GameLogic extends HandlesLogic {
                 int  renovated = 0;
                 if(set.contains((Establishment)selectedCard)){
                     int index = set.indexOf(selectedCard);
+                    //loan office is the only card someone would want to keep renovated copies of
                     if(selectedCard.getNumAvailable() == 0  && selectedCard.getCode().equals("LO")
                             || selectedCard.getNumCopies() != selectedCard.getNumAvailable())
                         renovated = 1;
@@ -1293,18 +1402,24 @@ public class GameLogic extends HandlesLogic {
                 players[activePlayer].removeCopyOfEstablishment((Establishment)selectedCard, true);
                 ui.sendMessage(REPLY_ACTIVATE_MOVING+":"+i+":"+selectedCard.getCode()+":"+renovated, -1, -1);
                 selectedCard = null;
+
+                p = players[activePlayer];
+                p.makeMoney(4);
+                moneyStuff(activePlayer,4, false);
+
                 if(activePlayer == townIndexBeingShown || i == townIndexBeingShown) {
                     displayTown(townIndexBeingShown);
                 }
                 break;
             }
         }
-        activateMovingCompany(numCardsToPick);
+        activateMovingCompany();
     }
 
     private final String IN_GAME = "in";
     private final String BEGIN_TURN = "begin";
     private final String ADD_TO_MARKET = "add";
+    private final String RETURN_TO_MARKET = "return";
     //this should be appended with <their playerOrder>
     private final String ADD_TO_CITY = "city";
     private final String LOSE_MONEY = "lose";

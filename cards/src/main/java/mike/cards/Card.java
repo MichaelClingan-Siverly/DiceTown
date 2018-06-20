@@ -1,6 +1,13 @@
 package mike.cards;
 
+import android.content.Context;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.support.annotation.NonNull;
+import android.view.Gravity;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 
 /**
  * Created by mike on 7/26/2017.
@@ -28,15 +35,10 @@ public abstract class Card implements CardInterface{
         return numCopies-numRenovated;
     }
 
-//    public abstract int getCost();
-//    //cards supply their own image, so I don't have to figure it out with tons of instanceof when drawing them
-//    public abstract int getFullImageId();
-//    //full image does not show how many copies or if a card is under construction, plus its larger
-//    public abstract int getGridImageId();
-
-    //I'm pretty lazy with overriding these in the subclasses, because there should only be
-    // one of each class in each structure.
-    // Since there should only be one of each card, I'm able to compare by hashCode pretty easily
+    /**I'm pretty lazy with overriding these in the subclasses, because there should only be
+     * one of each class in each structure.
+     * Since there should only be one of each card, I'm able to compare by hashCode pretty easily
+     */
     @Override
     abstract public int hashCode();
 
@@ -49,39 +51,53 @@ public abstract class Card implements CardInterface{
     }
 
     @Override
-    public int getNumRenovatedResId(){
-        switch(numRenovated){
-            case 1:
-                return R.drawable.under_construction1;
-            case 2:
-                return R.drawable.under_construction2;
-            case 3:
-                return R.drawable.under_construction3;
-            case 4:
-                return R.drawable.under_construction4;
-            case 5:
-                return R.drawable.under_construction5;
-            case 6:
-                return R.drawable.under_construction6;
-            default:
-                return R.drawable.transparent;
+    public void setnumOwnedImage(FrameLayout frame, boolean increaseMargin){
+        if(numCopies > 1) {
+            TextView foreground = new TextView(frame.getContext());
+            foreground.setTextColor(Color.WHITE);
+            foreground.setTypeface(foreground.getTypeface(), Typeface.BOLD);
+            String text = "x"+numCopies;
+            foreground.setText(text);
+            foreground.setGravity(Gravity.BOTTOM | Gravity.END);
+
+            setPadding(foreground,increaseMargin,false);
+            frame.addView(foreground);
         }
     }
+
     @Override
-    public int getNumOwnedResId(){
-        switch(numCopies){
-            case 2:
-                return R.drawable.x2;
-            case 3:
-                return R.drawable.x3;
-            case 4:
-                return R.drawable.x4;
-            case 5:
-                return R.drawable.x5;
-            case 6:
-                return R.drawable.x6;
-            default:
-                return R.drawable.transparent;
+    public void setNumRenovatedImage(FrameLayout frame, boolean increaseMargin){
+        if (numRenovated > 0) {
+            TextView foregroundRenovated = new TextView(frame.getContext());
+            foregroundRenovated.setTextColor(Color.rgb(245, 168, 41));
+            foregroundRenovated.setTypeface(foregroundRenovated.getTypeface(), Typeface.BOLD);
+            String text = "!"+numRenovated;
+            foregroundRenovated.setText(text);
+            foregroundRenovated.setGravity(Gravity.BOTTOM | Gravity.START);
+
+            setPadding(foregroundRenovated,increaseMargin, true);
+            frame.addView(foregroundRenovated);
         }
+    }
+
+    void setPadding(TextView tv, boolean addMargin, boolean forReno){
+        int botPad = 2;
+        int rightPad = 0;
+        int leftPad = 0;
+        if(addMargin){
+            tv.setTextSize(35);
+            botPad = 20;
+            if(forReno)
+                leftPad = 20;
+            else
+                rightPad = 20;
+        }
+        else if(forReno)
+            leftPad = 7;
+        else
+            rightPad = 7;
+
+        float density = tv.getContext().getResources().getDisplayMetrics().density;
+        tv.setPadding((int)(density * leftPad),0,(int)(density * rightPad), (int)(density * botPad));
     }
 }

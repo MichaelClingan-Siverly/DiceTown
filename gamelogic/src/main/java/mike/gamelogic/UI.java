@@ -34,8 +34,10 @@ public interface UI {
      * Certain cards cause the user to pick from different sets of cards.
      * @param cardOwners arrays of HasCards, so this can display cards arranged by player name
      * @param myName name of this user (for things like determining whether to give a renovated card or non-renovated one)
+     * @param titleMessage String that the title of the selection window should display
+     * @param forceChoice true if a choice must be made, false if the player can decide not to
      */
-    void pickCard(HasCards cardOwners[], String myName, String message, boolean nonMajor);
+    void pickCard(HasCards cardOwners[], String myName, String titleMessage, boolean forceChoice);
 
     /**
      * Allows the user to pick a card with respect to their money owned.

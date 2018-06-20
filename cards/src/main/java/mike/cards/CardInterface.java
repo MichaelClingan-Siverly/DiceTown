@@ -1,6 +1,10 @@
 package mike.cards;
 
+import android.content.Context;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 /**
  * Created by mike on 7/30/2017.
@@ -17,8 +21,17 @@ public interface CardInterface extends Comparable<CardInterface>{
     int getFullImageId();
     //full image does not show how many copies or if a card is under construction, plus its larger
     int getGridImageId();
-    //these two are here because like the imageIDs, the drawables are in this module...
-    // so I don't expect (or really want) other stuff to know about it
-    int getNumRenovatedResId();
-    int getNumOwnedResId();
+    /**
+     * used for displaying a card's number of copies under construction
+     * @param frame the frame the representation will be added to
+     * @param increaseMargin indicate if a margin should be used
+     */
+    void setNumRenovatedImage(FrameLayout frame, boolean increaseMargin);
+
+    /**
+     * used for displaying a card's number of copies owned
+     * @param frame the frame the representation will be added to
+     * @param increaseMargin indicate if a margin should be used
+     */
+    void setnumOwnedImage(FrameLayout frame, boolean increaseMargin);
 }

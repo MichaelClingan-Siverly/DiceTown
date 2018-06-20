@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class DemoCompany extends Establishment implements SecondaryIndustry {
+public class DemoCompany extends LowEstablishment implements SecondaryIndustry {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

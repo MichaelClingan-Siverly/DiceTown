@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class SushiBar extends Establishment implements Restaurant {
+public class SushiBar extends LowEstablishment implements Restaurant {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

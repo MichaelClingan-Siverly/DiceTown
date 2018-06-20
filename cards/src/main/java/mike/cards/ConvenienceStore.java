@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class ConvenienceStore extends Establishment implements Shop {
+public class ConvenienceStore extends LowEstablishment implements Shop {
     public static String code = "CS";
 
     @Override

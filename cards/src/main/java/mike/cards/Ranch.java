@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class Ranch extends Establishment implements Livestock {
+public class Ranch extends LowEstablishment implements Livestock {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

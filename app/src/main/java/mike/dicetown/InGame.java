@@ -1,5 +1,6 @@
 package mike.dicetown;
 
+import android.app.ActionBar;
 import android.app.FragmentManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -9,6 +10,7 @@ import android.content.ServiceConnection;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -313,9 +315,9 @@ public class InGame extends AppCompatActivity implements UI {
     }
 
     @Override
-    public void pickCard(HasCards[] cardOwners, String myName, String titleMessage, boolean nonMajor) {
+    public void pickCard(HasCards[] cardOwners, String myName, String titleMessage, boolean forceChoice) {
         DialogInfo.getInstance().setPlayers(cardOwners);
-        DialogInfo.getInstance().setNonMajor(nonMajor);
+        DialogInfo.getInstance().setForceChoice(forceChoice);
         DialogInfo.getInstance().setMyName(myName);
 
         String title = "Select A Card for "+ titleMessage;
@@ -364,7 +366,7 @@ public class InGame extends AppCompatActivity implements UI {
     public void askIfAddTwo(final int d1, final int d2) {
         String title = "Add 2 to your roll?";
 
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_REROLL, d1, d2);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_ADD_TWO, d1, d2);
         frag.show(getFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveAddTwoChoice(boolean addTwo, int d1, int d2){
@@ -410,7 +412,10 @@ public class InGame extends AppCompatActivity implements UI {
         for(int i = 0; i < landmarks.length; i++){
             ImageButton button = (ImageButton)landmarkLayout.getChildAt(i);
             button.setBackgroundResource(landmarks[i].getGridImageId());
-            button.setImageResource(landmarks[i].getNumRenovatedResId());
+            if(landmarks[i].getNumAvailable() < 1)
+                button.setImageResource(R.drawable.under_construction);
+            else
+                button.setImageResource(0);
             button.setTag(landmarks[i].getFullImageId());
         }
     }
@@ -429,41 +434,21 @@ public class InGame extends AppCompatActivity implements UI {
             frame.setVisibility(View.GONE);
         }
         //I want cards to keep a nice poker card size ratio, and for a full row to take up screen width
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+//        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         Establishment e;
 
-        for(int i = 0; i < establishments.length; i++){
+        for(int i = 0; i < establishments.length; i++) {
             e = establishments[i];
-            //I use a FrameLayout because I can't set a foreground without it
-            //   (View adds setForeground at a higher API than I'd like)
-            frame = (FrameLayout)grid.getChildAt(i);
+            frame = (FrameLayout) grid.getChildAt(i);
             ImageButton button = new ImageButton(this);
             //card image
             button.setBackgroundResource(e.getGridImageId());
             //set the tag to the card's larger image id
-            button.setTag(e.getFullImageId());
-            //I set a tag for the gridID with its index as a key and
-            //num renovated
-            button.setImageResource(e.getNumRenovatedResId());
-            button.setLayoutParams(params);
+            button.setTag(e.getFullImageId()); //I set a tag for the gridID with its index as a key
             button.setOnClickListener(cardClickListener);
-            //num owned
-            ImageView foreground = new ImageView(this);
-            foreground.setImageResource(e.getNumOwnedResId());
-            foreground.setLayoutParams(params);
-
-            //almost forgot to add the views to the frame
             frame.addView(button);
-            frame.addView(foreground);
-
-            if(e.equals(new TechStartup())){
-                int investment = ((TechStartup)e).getValue();
-                TextView tv = new TextView(this);
-                tv.setText(R.string.invest + investment);
-                tv.setGravity(Gravity.BOTTOM | Gravity.END);
-                tv.setTextColor(Color.BLACK);
-                frame.addView(tv);
-            }
+            e.setNumRenovatedImage(frame, false);
+            e.setnumOwnedImage(frame, false);
             frame.setVisibility(View.VISIBLE);
         }
     }

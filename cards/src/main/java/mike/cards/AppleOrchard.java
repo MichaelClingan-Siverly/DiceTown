@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class  AppleOrchard extends Establishment implements Crop{
+public class  AppleOrchard extends HighEstablishment implements Crop {
 
     @Override
     public <T> T accept(CardVisitor<T> visitor) {

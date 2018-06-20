@@ -26,11 +26,10 @@ class DialogInfo {
     //used while picking players
     private HasCards[] players;
     private String myName;
-    private boolean nonMajor;
+    private boolean forceChoice;
 
     //used while picking landmarks or market cards
     private CardInterface[] cards;
-    private int money;
 
 
     private static final DialogInfo ourInstance = new DialogInfo();
@@ -97,13 +96,14 @@ class DialogInfo {
         this.myName = myName;
     }
 
-    boolean isNonMajor() {
-        return nonMajor;
+    boolean isForcingChoice() {
+        return forceChoice;
     }
 
-    void setNonMajor(boolean nonMajor) {
-        this.nonMajor = nonMajor;
+    void setForceChoice(boolean force) {
+        this.forceChoice = force;
     }
+
 
     CardInterface[] getCards() {
         return cards;

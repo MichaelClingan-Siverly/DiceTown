@@ -8,39 +8,26 @@ import java.util.Random;
 
 /**
  * Created by mike on 8/2/2017.
+ * Represents a deck of cards split into three different piles; one for major establishments,
+ * one for establishments which activate from 1-6, one for establishments which activate from 7-14
  */
 
 public class Deck {
-    public static final int NUM_ESTABLISHMENTS = 38;
-    private LinkedList<Establishment> deck;
+    private class Piles{
+        LinkedList<Establishment> majorEstablishments = new LinkedList<>();
+        LinkedList<Establishment> lowEstablishments = new LinkedList<>();
+        LinkedList<Establishment> highEstablishments = new LinkedList<>();
+    }
 
-//    public static final ArraySet<String> primaryIndustryCodes = new ArraySet<>(Arrays.asList("MB", "TB"));
-//    public static final ArraySet<String> secondaryIndustryCodes = new ArraySet<>(Arrays.asList("CF", "FF", "PM", "FW", "DC", "LO", "W", "MC", "BP"));
-//    public static final ArraySet<String> cropCodes = new ArraySet<>(Arrays.asList("CO", "AO", "FO", "WF", "V"));
-//    public static final ArraySet<String> livestockCodes = new ArraySet<>();
-    private final ArraySet<String> majorEstablishmentCodes = new ArraySet<>(Arrays.asList("S", "TV", "BC", "PB", "TO", "RC", "TS", "P", "CC"));
-//    public static final ArraySet<String> naturalResourceCodes = new ArraySet<>(Arrays.asList("M", "F"));
-//    public static final ArraySet<String> shopCodes = new ArraySet<>(Arrays.asList("B", "CS", "FS", "GS"));
-//    public static final ArraySet<String> restaurantCodes = new ArraySet<>(Arrays.asList("FA", "C", "SB", "PJ", "BS", "FR", "EC"));
+    public static final int NUM_ESTABLISHMENTS = 38;
+    private Piles piles = new Piles();
 
     public Deck(int numPlayers){
-//        livestockCodes.add("R");
-//        primaryIndustryCodes.addAll(livestockCodes);
-//        primaryIndustryCodes.addAll(cropCodes);
-//        primaryIndustryCodes.addAll(naturalResourceCodes);
-//        secondaryIndustryCodes.addAll(shopCodes);
-        deck = new LinkedList<>();
-        Establishment[] establishments = new Establishment[]{new AppleOrchard(), new Bakery(),
-                new BottlingPlant(), new BurgerStand(), new BusinessCenter(), new Cafe(),
-                new CheeseFactory(), new ConvenienceStore(), new ConventionCenter(), new CornField(),
-                new DemoCompany(), new ExclusiveClub(), new FamilyRestaurant(),
-                new FlowerOrchard(), new FlowerShop(), new FoodWarehouse(), new Forest(),
-                new FrenchRestaurant(), new FurnitureFactory(), new GeneralStore(),
-                new LoanOffice(), new MackerelBoat(), new Mine(), new MovingCompany(), new Park(),
-                new PizzaJoint(), new ProduceMarket(), new Publisher(), new Ranch(),
-                new RenoCompany(), new Stadium(), new SushiBar(), new TaxOffice(), new TechStartup(),
-                new TunaBoat(), new TvStation(), new Vineyard(), new WheatField(), new Winery()};
+        Establishment[] establishments = createCards();
+        addCardsToPiles(establishments, numPlayers);
+    }
 
+    private void addCardsToPiles(Establishment[] establishments, int numPlayers){
         addCopiesToPool(establishments, numPlayers);
 
         Random rand = new Random();
@@ -50,9 +37,19 @@ public class Deck {
             try {
                 Establishment newCard = establishments[poolIndex].getClass().newInstance();
                 establishments[poolIndex].removeCopy();
+                //eventually all copies of all cards will be removed from the pool
                 if(establishments[poolIndex].getNumCopies() == 0)
                     poolLength = removeFromPool(establishments, poolIndex, poolLength);
-                deck.push(newCard);
+
+                LinkedList<Establishment> list;
+                if(newCard instanceof MajorEstablishment)
+                    list = piles.majorEstablishments;
+                else if(newCard instanceof LowEstablishment)
+                    list = piles.lowEstablishments;
+                else
+                    list = piles.highEstablishments;
+
+                list.push(newCard);
             } catch (InstantiationException | IllegalAccessException e) {
                 //all the cards have no parametrized constructors, so instantiation is good
                 //all the cards are public, so illegalAccess is good too
@@ -61,17 +58,37 @@ public class Deck {
         }
     }
 
+    private Establishment[] createCards(){
+        return new Establishment[]{new AppleOrchard(), new Bakery(),
+                new BottlingPlant(), new BurgerStand(), new BusinessCenter(), new Cafe(),
+                new CheeseFactory(), new ConvenienceStore(), new ConventionCenter(), new CornField(),
+                new DemoCompany(), new ExclusiveClub(), new FamilyRestaurant(),
+                new FlowerOrchard(), new FlowerShop(), new FoodWarehouse(), new Forest(),
+                new FrenchRestaurant(), new FurnitureFactory(), new GeneralStore(),
+                new LoanOffice(), new MackerelBoat(), new Mine(), new MovingCompany(), new Park(),
+                new PizzaJoint(), new ProduceMarket(), new Publisher(), new Ranch(),
+                new RenoCompany(), new Stadium(), new SushiBar(), new TaxOffice(), new TechStartup(),
+                new TunaBoat(), new TvStation(), new Vineyard(), new WheatField(), new Winery()};
+    }
+//    private ArraySet<String> createMajorCodes(){
+//        return new ArraySet<>(Arrays.asList(
+//                new BusinessCenter().getCode(), new ConventionCenter().getCode(), new Park().getCode(),
+//                new Publisher().getCode(), new RenoCompany().getCode(), new Stadium().getCode(),
+//                new TaxOffice().getCode(), new TechStartup().getCode(), new TvStation().getCode()));
+//    }
+//    private ArraySet<String> createCheapCodes(){
+//        return new ArraySet<>(Arrays.asList(
+//                new WheatField().getCode(), new Bakery().getCode(), new Ranch().getCode(),
+//                new Cafe().getCode(), new ConvenienceStore().getCode(), new Forest().getCode(),
+//                new SushiBar().getCode(), new FlowerOrchard().getCode(), new FlowerShop().getCode(),
+//                new GeneralStore().getCode(), new CornField().getCode(), new DemoCompany().getCode(),
+//                new FrenchRestaurant().getCode(), new LoanOffice().getCode()));
+//    }
+
     private void addCopiesToPool(Establishment[] establishments, int numPlayers){
-        final int nonMajorEstablishmentCopiesInDeck = 6;
+        //this was longer before I moved the work to the card.
         for(Establishment c : establishments){
-            //major establishments get one copy for each player
-            if(majorEstablishmentCodes.contains(c.getCode())){
-                c.setNumCopies(numPlayers);
-            }
-            //other establishments get 6 copies each regardless of amount of players
-            else{
-                c.setNumCopies(nonMajorEstablishmentCopiesInDeck);
-            }
+            c.setNumCopies(numPlayers);
         }
     }
 
@@ -81,15 +98,44 @@ public class Deck {
         return poolLength-1;
     }
 
-    public Establishment draw(){
-        if(deck.size() > 0)
-            return deck.pop();
-        else return null;
+
+    public final static int pileCodeMajor = 1;
+    public final static int pileCodeLow = 2;
+    public final static int pileCodeHigh = 3;
+    /**
+     * Draw a card from the deck
+     * @param pileCode 1 for major establishments, 2 for establishments costing < 7,
+     *                 else for those costing > 6.
+     * @return a card belonging to the indicated pile, or null if there are no more cards.
+     */
+    public Establishment draw(int pileCode){
+        LinkedList<Establishment> pile;
+        switch(pileCode){
+            case pileCodeMajor:
+                pile = piles.majorEstablishments;
+                break;
+            case pileCodeLow:
+                pile = piles.lowEstablishments;
+                break;
+            default:
+                pile = piles.highEstablishments;
+
+        }
+        if(pile.size() > 0)
+            return pile.pop();
+        else
+            return null;
     }
 
-    public boolean isEmpty(){
-        return deck.isEmpty();
-    }
+//    /**
+//     * Check if a deck pile is empty
+//     * @param pileCode 1 for major establishments, 2 for establishments costing < 7,
+//     *                 3 for ones costing > 6
+//     * @return a card belonging to the indicated pile, or null if there are no more cards.
+//     */
+//    public boolean isEmpty(int pileCode){
+//        return deck.isEmpty();
+//    }
 
     public static Card getCardFromCode(String cardCode){
         switch(cardCode){

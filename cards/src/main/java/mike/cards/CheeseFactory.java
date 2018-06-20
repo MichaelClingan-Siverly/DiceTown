@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class CheeseFactory extends Establishment implements SecondaryIndustry{
+public class CheeseFactory extends HighEstablishment implements SecondaryIndustry {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

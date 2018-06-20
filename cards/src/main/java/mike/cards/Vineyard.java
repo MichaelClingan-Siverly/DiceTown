@@ -5,7 +5,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class Vineyard extends Establishment implements Crop {
+public class Vineyard extends HighEstablishment implements Crop {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

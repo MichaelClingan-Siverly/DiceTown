@@ -93,7 +93,7 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(AppleOrchard orchard) {
-        if(roll == 10 && activationCode == ACTIVATE_INDUSTRY) {
+        if(roll == 10 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int total = orchard.getNumAvailable() * 3;
             orchard.finishRenovation();
             return total;
@@ -103,19 +103,13 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(Bakery bakery) {
-        if(myTurn && (roll == 2 || roll == 3) && activationCode == ACTIVATE_INDUSTRY) {
+        if(myTurn && (roll == 2 || roll == 3) && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int value = 1;
             if(players[myIndex].checkIfCardAvailable(new ShoppingMall()))
                 value++;
             int total = bakery.getNumAvailable() * value;
             bakery.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            int value = 1;
-            if(players[myIndex].checkIfCardAvailable(new ShoppingMall()))
-                value++;
-            return value;
         }
         return 0;
     }
@@ -130,8 +124,6 @@ class ActivationVisitor implements CardVisitor {
                         total+= e.getNumCopies();
                 }
             }
-            if (activationCode == FORCE_ACTIVATE)
-                return total;
             return total * sodaPlant.getNumAvailable();
         }
         return 0;
@@ -147,6 +139,8 @@ class ActivationVisitor implements CardVisitor {
             burgerStand.finishRenovation();
             return total;
         }
+        else if(activationCode == FORCE_ACTIVATE)
+            burgerStand.finishRenovation();
         return 0;
     }
 
@@ -165,18 +159,17 @@ class ActivationVisitor implements CardVisitor {
             cafe.finishRenovation();
             return total;
         }
+        else if(activationCode == FORCE_ACTIVATE)
+            cafe.finishRenovation();
         return 0;
     }
 
     @Override
     public Integer visit(CheeseFactory cheeseFactory) {
-        if(myTurn && roll == 7 && activationCode == ACTIVATE_INDUSTRY){
+        if(myTurn && roll == 7 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE){
             int total = cheeseFactory.getNumAvailable() * 3 * getNumLivestock(players[myIndex]);
             cheeseFactory.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return 3 * getNumLivestock(players[myIndex]);
         }
         return 0;
     }
@@ -187,19 +180,13 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(ConvenienceStore convenienceStore) {
-        if(myTurn && roll == 4 && activationCode == ACTIVATE_INDUSTRY){
+        if(myTurn && roll == 4 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE){
             int value = 3;
             if(players[myIndex].checkIfCardAvailable(new ShoppingMall()))
                 value++;
             int total = convenienceStore.getNumAvailable() * value;
             convenienceStore.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            int value = 3;
-            if(players[myIndex].checkIfCardAvailable(new ShoppingMall()))
-                value++;
-            return value;
         }
         return 0;
     }
@@ -211,21 +198,22 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(CornField cornField) {
-        if((roll == 3 || roll == 4) && myConstructedLandmarks < 2 && activationCode == ACTIVATE_INDUSTRY) {
+        if(((roll == 3 || roll == 4) && activationCode == ACTIVATE_INDUSTRY ||
+                activationCode == FORCE_ACTIVATE) && myConstructedLandmarks < 2) {
             int total = cornField.getNumAvailable();
             cornField.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE && myConstructedLandmarks < 2){
-            return 1;
         }
         return 0;
     }
 
     @Override
     public Integer visit(DemoCompany demoCompany) {
-        if(myTurn && roll == 4)
-            demoCompany.finishRenovation();
+//        if(myTurn && roll == 4 || activationCode == FORCE_ACTIVATE) {
+//            int total = 8 * Math.min(demoCompany.getNumAvailable(), myConstructedLandmarks);
+//            demoCompany.finishRenovation();
+//            return total;
+//        }
         return 0;
     }
 
@@ -237,6 +225,8 @@ class ActivationVisitor implements CardVisitor {
             club.finishRenovation();
             return total;
         }
+        else if(activationCode == FORCE_ACTIVATE)
+            club.finishRenovation();
         return 0;
     }
 
@@ -250,12 +240,15 @@ class ActivationVisitor implements CardVisitor {
             familyRestaurant.finishRenovation();
             return total;
         }
+        else if(activationCode == FORCE_ACTIVATE)
+            familyRestaurant.finishRenovation();
         return 0;
     }
 
     @Override
     public Integer visit(FlowerShop shop) {
-        if(roll == 6 && myTurn && activationCode == ACTIVATE_INDUSTRY && players[myIndex].getCitySet().contains(new FlowerOrchard())){
+        if((roll == 6 && myTurn && activationCode == ACTIVATE_INDUSTRY  ||
+                activationCode == FORCE_ACTIVATE) && players[myIndex].getCitySet().contains(new FlowerOrchard())){
             int index = players[myIndex].getCitySet().indexOf(new FlowerOrchard());
             int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
             int value = 1;
@@ -265,33 +258,23 @@ class ActivationVisitor implements CardVisitor {
             shop.finishRenovation();
             return total;
         }
-        else if(activationCode == FORCE_ACTIVATE && players[myIndex].getCitySet().contains(new FlowerOrchard())){
-            int index = players[myIndex].getCitySet().indexOf(new FlowerOrchard());
-            int numCopies = players[myIndex].getCitySet().valueAt(index).getNumCopies();
-            int value = 1;
-            if(players[myIndex].checkIfCardAvailable(new ShoppingMall()))
-                value++;
-            return numCopies * value;
-        }
         return 0;
     }
 
     @Override
     public Integer visit(FlowerOrchard orchard) {
-        if(roll == 4 && activationCode == ACTIVATE_INDUSTRY) {
+        if(roll == 4 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int total = orchard.getNumAvailable();
             orchard.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return 1;
         }
         return 0;
     }
 
     @Override
     public Integer visit(FoodWarehouse warehouse) {
-        if(myTurn && (roll == 12 || roll == 13) && activationCode == ACTIVATE_INDUSTRY){
+        if(myTurn && (roll == 12 || roll == 13) && activationCode == ACTIVATE_INDUSTRY ||
+                activationCode == FORCE_ACTIVATE){
             int total = 0;
             for(Establishment e : players[myIndex].getCity()){
                 if(e instanceof Restaurant)
@@ -301,26 +284,15 @@ class ActivationVisitor implements CardVisitor {
             warehouse.finishRenovation();
             return total;
         }
-        else if(activationCode == FORCE_ACTIVATE){
-            int total = 0;
-            for(Establishment e : players[myIndex].getCity()){
-                if(e instanceof Restaurant)
-                    total+= e.getNumCopies();
-            }
-            return total * 2;
-        }
         return 0;
     }
 
     @Override
     public Integer visit(Forest forest) {
-        if(roll == 5 && activationCode == ACTIVATE_INDUSTRY) {
+        if(roll == 5 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int total = forest.getNumAvailable();
             forest.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return 1;
         }
         return 0;
     }
@@ -335,18 +307,17 @@ class ActivationVisitor implements CardVisitor {
             restaurant.finishRenovation();
             return total;
         }
+        else if(activationCode == FORCE_ACTIVATE)
+            restaurant.finishRenovation();
         return 0;
     }
 
     @Override
     public Integer visit(FurnitureFactory factory) {
-        if(myTurn && roll == 8 && activationCode == ACTIVATE_INDUSTRY){
+        if(myTurn && roll == 8 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE){
             int total = getNumNaturalResources(players[myIndex]) * factory.getNumAvailable() * 3;
             factory.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return 3 * getNumNaturalResources(players[myIndex]) * factory.getNumAvailable() * 3;
         }
         return 0;
     }
@@ -360,7 +331,8 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(GeneralStore store) {
-        if(roll == 2 && myTurn && myConstructedLandmarks < 2 && activationCode == ACTIVATE_INDUSTRY) {
+        if((roll == 2 && myTurn && activationCode == ACTIVATE_INDUSTRY ||
+                activationCode == FORCE_ACTIVATE) && myConstructedLandmarks < 2) {
             int value = 2;
             if(players[myIndex].checkIfCardAvailable(new ShoppingMall()))
                 value++;
@@ -368,60 +340,47 @@ class ActivationVisitor implements CardVisitor {
             store.finishRenovation();
             return total;
         }
-        else if(activationCode == FORCE_ACTIVATE && myConstructedLandmarks < 2) {
-            int value = 2;
-            if (players[myIndex].checkIfCardAvailable(new ShoppingMall()))
-                value++;
-            return value;
-        }
         return 0;
     }
-
     @Override
     public Integer visit(LoanOffice loanOffice) {
-        if(myTurn && (roll == 5 || roll == 6) && activationCode == ACTIVATE_INDUSTRY){
+        if(myTurn && (roll == 5 || roll == 6) && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE){
             int money = players[myIndex].getMoney();
             int total = Math.min(money, 2*loanOffice.getNumAvailable());
             loanOffice.finishRenovation();
             return -total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return -Math.min(players[myIndex].getMoney(), 2);
         }
         return 0;
     }
 
     @Override
     public Integer visit(MackerelBoat boat) {
-        if(roll == 8 && players[myIndex].checkIfCardAvailable(new Harbor()) && activationCode == ACTIVATE_INDUSTRY) {
+        if((roll == 8 && activationCode == ACTIVATE_INDUSTRY ||
+                activationCode == FORCE_ACTIVATE) && players[myIndex].checkIfCardAvailable(new Harbor())) {
             int total = boat.getNumAvailable() * 3;
             boat.finishRenovation();
             return total;
         }
-        else if(activationCode == FORCE_ACTIVATE && players[myIndex].checkIfCardAvailable(new Harbor()))
-            return 3;
         return 0;
     }
 
     @Override
     public Integer visit(Mine mine) {
-        if(roll == 9 && activationCode == ACTIVATE_INDUSTRY) {
+        if(roll == 9 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int total = mine.getNumAvailable() * 5;
             mine.finishRenovation();
             return total;
         }
-        else if(activationCode == FORCE_ACTIVATE)
-            return 5;
         return 0;
     }
 
     @Override
     public Integer visit(MovingCompany company) {
-        if((roll == 9 || roll == 10) && myTurn) {
-            int total = company.getNumAvailable() * 4;
-            company.finishRenovation();
-            return total;
-        }
+//        if((roll == 9 || roll == 10) && myTurn || activationCode == FORCE_ACTIVATE) {
+//            int total = company.getNumAvailable() * 4;
+//            company.finishRenovation();
+//            return total;
+//        }
         return 0;
     }
 
@@ -440,20 +399,18 @@ class ActivationVisitor implements CardVisitor {
             pizzaJoint.finishRenovation();
             return total;
         }
+        else if(activationCode == FORCE_ACTIVATE)
+            pizzaJoint.finishRenovation();
         return 0;
     }
 
     @Override
     public Integer visit(ProduceMarket market) {
-        if(myTurn && (roll == 11 || roll == 12)){
+        if(myTurn && (roll == 11 || roll == 12) || activationCode == FORCE_ACTIVATE){
             int total = getNumCrops(players[myIndex]);
             total = total * 2 * market.getNumAvailable();
             market.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            int total = getNumCrops(players[myIndex]);
-            return total * 2;
         }
         return 0;
     }
@@ -474,13 +431,10 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(Ranch ranch) {
-        if(roll == 2 && activationCode == ACTIVATE_INDUSTRY) {
+        if(roll == 2 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int total =  ranch.getNumAvailable();
             ranch.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return 1;
         }
         return 0;
     }
@@ -506,6 +460,8 @@ class ActivationVisitor implements CardVisitor {
             bar.finishRenovation();
             return total;
         }
+        else if(activationCode == FORCE_ACTIVATE)
+            bar.finishRenovation();
         return 0;
     }
 
@@ -521,7 +477,8 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(TunaBoat boat) {
-        if (roll >= 12 && activationCode == ACTIVATE_INDUSTRY && players[myIndex].checkIfCardAvailable(new Harbor())){
+        if ((roll >= 12 && activationCode == ACTIVATE_INDUSTRY  || activationCode == FORCE_ACTIVATE)
+                && players[myIndex].checkIfCardAvailable(new Harbor())){
             int total = boat.getNumAvailable() * tunaRoll;
             boat.finishRenovation();
             return total;
@@ -536,33 +493,27 @@ class ActivationVisitor implements CardVisitor {
 
     @Override
     public Integer visit(Vineyard vineyard) {
-        if(roll == 7 && activationCode == ACTIVATE_INDUSTRY) {
+        if(roll == 7 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int total = vineyard.getNumAvailable() * 3;
             vineyard.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return 3;
         }
         return 0;
     }
 
     @Override
     public Integer visit(WheatField field) {
-        if(roll == 1 && activationCode == ACTIVATE_INDUSTRY) {
+        if(roll == 1 && activationCode == ACTIVATE_INDUSTRY || activationCode == FORCE_ACTIVATE) {
             int total = field.getNumAvailable();
             field.finishRenovation();
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            return 1;
         }
         return 0;
     }
 
     @Override
     public Integer visit(Winery winery) {
-        if(myTurn && roll == 9){
+        if(myTurn && roll == 9 || activationCode == FORCE_ACTIVATE){
             int numCopies = players[myIndex].checkIfCardOwned(new Vineyard());
             int numToRenovate = winery.getNumAvailable();
             int total = numToRenovate * (6 * numCopies);
@@ -577,22 +528,6 @@ class ActivationVisitor implements CardVisitor {
                 winery.addCopy();
             }
             return total;
-        }
-        else if(activationCode == FORCE_ACTIVATE){
-            int numCopies = players[myIndex].checkIfCardOwned(new Vineyard());
-            int numWineries = winery.getNumCopies();
-            int numBeingRenovated = numWineries - winery.getNumAvailable() + 1;
-
-            for(int i = 0; i < winery.getNumCopies(); i++){
-                winery.removeCopy();
-            }
-            for(int i = 0; i < numBeingRenovated; i++){
-                winery.addRenovatedCopy();
-            }
-            for(int i = numBeingRenovated; i < numCopies; i++){
-                winery.addCopy();
-            }
-            return 6 * numCopies;
         }
         return 0;
     }

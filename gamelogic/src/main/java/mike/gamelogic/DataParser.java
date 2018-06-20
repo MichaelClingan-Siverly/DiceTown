@@ -4,6 +4,7 @@ import java.util.ArrayList;
 
 /**
  * Created by mike on 10/5/2017.
+ * Used to parse messages received from other players (client or server)
  */
 
 public class DataParser {

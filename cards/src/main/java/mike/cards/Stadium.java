@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class Stadium extends Establishment implements MajorEstablishment {
+public class Stadium extends MajorEstablishment {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

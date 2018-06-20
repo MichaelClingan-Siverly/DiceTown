@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class TunaBoat extends Establishment implements PrimaryIndustry {
+public class TunaBoat extends HighEstablishment implements PrimaryIndustry {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

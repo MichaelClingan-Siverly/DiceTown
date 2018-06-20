@@ -4,7 +4,7 @@ package mike.cards;
  * Created by mike on 7/26/2017.
  */
 
-public class WheatField extends Establishment implements Crop {
+public class WheatField extends LowEstablishment implements Crop {
     @Override
     public <T> T accept(CardVisitor<T> visitor) {
         return visitor.visit(this);

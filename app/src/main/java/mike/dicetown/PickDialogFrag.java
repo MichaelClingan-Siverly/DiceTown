@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -19,8 +20,10 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import mike.cards.Card;
 import mike.cards.CardInterface;
@@ -150,14 +153,16 @@ public class PickDialogFrag extends DialogFragment {
                 setPlayerLayout(builder);
                 break;
             case PICK_PLAYERS_CARD: //expects that caller has set nonMajor, players, and myName in the DialogInfo
-                //positive, neutral
+                //positive, neutral, negative
                 setPickPlayerOrCardListeners(builder);
+                if(!DialogInfo.getInstance().isForcingChoice())
+                    setMarketNegButton(builder, "no");
                 setPickPlayersCardLayout(builder);
                 break;
             case PICK_MARKETS_CARD:  //expects caller to have set cards, myName
                 //positive, neutral, negative
                 setPickPlayerOrCardListeners(builder);
-                setMarketNegButton(builder);
+                setMarketNegButton(builder, "don't buy");
                 setPickCardLayout(builder);
                 break;
             case PICK_LANDMARK: //expects that caller has set cards (to be the market), myName(as "market"), and players (as the buying player)
@@ -233,15 +238,15 @@ public class PickDialogFrag extends DialogFragment {
     }
 
 
-    private void setMarketNegButton(AlertDialog.Builder builder){
-        DialogInterface.OnClickListener dontBuyListener = new DialogInterface.OnClickListener() {
+    private void setMarketNegButton(AlertDialog.Builder builder, String buttonMessage){
+        DialogInterface.OnClickListener dontChooseListener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 ((InGame)getActivity()).selectCard(null, null);
                 destroyFragment();
             }
         };
-        builder.setNegativeButton("don't buy", dontBuyListener);
+        builder.setNegativeButton(buttonMessage, dontChooseListener);
     }
 
 
@@ -253,8 +258,7 @@ public class PickDialogFrag extends DialogFragment {
                 destroyFragment();
             }
         };
-        builder.setPositiveButton("yes", listener);
-        builder.setNegativeButton("no", listener);
+        setPosAndNegButtons(builder, listener);
     }
 
 
@@ -266,8 +270,7 @@ public class PickDialogFrag extends DialogFragment {
                 destroyFragment();
             }
         };
-        builder.setPositiveButton("yes", listener);
-        builder.setNegativeButton("no", listener);
+        setPosAndNegButtons(builder, listener);
     }
 
 
@@ -279,6 +282,10 @@ public class PickDialogFrag extends DialogFragment {
                 destroyFragment();
             }
         };
+        setPosAndNegButtons(builder, listener);
+    }
+
+    private void setPosAndNegButtons(AlertDialog.Builder builder, DialogInterface.OnClickListener listener){
         builder.setPositiveButton("yes", listener);
         builder.setNegativeButton("no", listener);
     }
@@ -296,7 +303,6 @@ public class PickDialogFrag extends DialogFragment {
                 destroyFragment();
             }
         };
-
         builder.setPositiveButton("ok", listener);
         setNeutralToViewTown(builder);
         enablePosButton = false;
@@ -409,7 +415,8 @@ public class PickDialogFrag extends DialogFragment {
 
     private void addPlayersCards(LinearLayout layout, HasCards owner){
         for(Establishment card : owner.getCity()){
-            if(DialogInfo.getInstance().isNonMajor() ^ card instanceof MajorEstablishment) {
+            if(!(card instanceof MajorEstablishment)){
+//            if(DialogInfo.getInstance().isNonMajor() ^ card instanceof MajorEstablishment) {
                 FrameLayout frame = new FrameLayout(getActivity());
                 ImageButton button = new ImageButton(getActivity());
                 addCardToFrame(frame, card, button, owner.getName(), makeCardFrameListener());
@@ -437,15 +444,15 @@ public class PickDialogFrag extends DialogFragment {
         frame.setLayoutParams(params);
 
         button.setLayoutParams(params);
-        button.setBackgroundResource(card.getFullImageId());
-        button.setImageResource(card.getNumRenovatedResId());
+        button.setImageResource(card.getFullImageId());
         button.setScaleType(ImageView.ScaleType.FIT_XY);
         button.setOnClickListener(cardListener);
-
         frame.addView(button);
-        ImageView foreground = new ImageView(getActivity());
-        foreground.setImageResource(card.getNumOwnedResId());
-        frame.addView(foreground);
+        //num renovated
+        card.setNumRenovatedImage(frame, true);
+        //num owned
+        card.setnumOwnedImage(frame, true);
+
         button.setTag(R.id.cardOwner, owner);
         button.setTag(R.id.card, card);
         button.setTag(R.id.frame, frame);
