@@ -1,26 +1,22 @@
 package mike.dicetown;
 
-import android.app.ActionBar;
-import android.app.FragmentManager;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.support.v4.util.ArraySet;
+import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
-import android.util.Log;
+import android.util.DisplayMetrics;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,17 +31,15 @@ import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 
 import mike.cards.Card;
-import mike.cards.ConstructibleLandmark;
 import mike.cards.Deck;
 import mike.cards.Establishment;
 import mike.cards.Landmark;
-import mike.cards.MajorEstablishment;
-import mike.cards.TechStartup;
 import mike.gamelogic.GameLogic;
 import mike.gamelogic.HandlesLogic;
 import mike.gamelogic.HasCards;
@@ -58,15 +52,11 @@ public class InGame extends AppCompatActivity implements UI {
     private boolean mIsBound = false;
     private final Messenger mMessenger = new Messenger(new IncomingHandler(InGame.this));
     private HandlesLogic logic;
-    int indexOfLastSelected = -1;
     AlertDialog pickDialog = null;
-    String playerPick = null;
-    private String owner = null;
-    Card pickedCard = null;
     private boolean establishmentsMade;
     PopupWindow popup;
 
-    String lastMidButtonText;
+    private String lastMidButtonText;
 
     //requires v to have a tag set with the resource id of the card
     private View.OnClickListener cardClickListener = new View.OnClickListener() {
@@ -93,7 +83,7 @@ public class InGame extends AppCompatActivity implements UI {
         }
 
         if(savedInstanceState != null) {
-            Button b = (Button)findViewById(R.id.inGameMiddleButton);
+            Button b = findViewById(R.id.inGameMiddleButton);
             lastMidButtonText = savedInstanceState.getString("lastText");
             b.setText(savedInstanceState.getString("nowText"));
         }
@@ -118,6 +108,11 @@ public class InGame extends AppCompatActivity implements UI {
     @Override
     public void onPause(){
         super.onPause();
+        if(popup != null){
+            popup.dismiss();
+            popup.setContentView(null);
+            popup = null;
+        }
         if(isFinishing()){
             stopService();
         }
@@ -166,7 +161,7 @@ public class InGame extends AppCompatActivity implements UI {
 
     //this needs to be public because Buttons made in xml use it
     public void middleButton(View view){
-        resetMidButtonText(true);
+        resetMidButtonText();
         logic.middleButtonPressed();
     }
 
@@ -185,15 +180,16 @@ public class InGame extends AppCompatActivity implements UI {
         logic.diceRolled(roll1, roll2);
     }
 
-    private void resetMidButtonText(boolean showDialog) {
-        Button b = (Button) findViewById(R.id.inGameMiddleButton);
+    private void resetMidButtonText() {
+        Button b = findViewById(R.id.inGameMiddleButton);
         if (b.getText().equals(getString(R.string.backToPick)) || b.getText().equals(getString(R.string.rollDice))) {
             b.setText(lastMidButtonText);
             lastMidButtonText = null;
         }
-        if (showDialog) {
-            showDialog();
-        }
+        //dont need to try showing the dialog here. Logic should tell me when to do it
+    }
+    void setLastMidButtonText(String text){
+        lastMidButtonText = text;
     }
 
     //I need both the service bound and the logic fragment attached to proceed.
@@ -229,7 +225,7 @@ public class InGame extends AppCompatActivity implements UI {
 
     private void loadLogicFragment(){
         //finds the fragments
-        FragmentManager manager = getFragmentManager();
+        FragmentManager manager = getSupportFragmentManager();
         logic = (HandlesLogic) manager.findFragmentByTag(GameLogic.TAG_LOGIC_FRAGMENT);
         // create the fragment and data the first time
         if (logic == null) {
@@ -245,10 +241,10 @@ public class InGame extends AppCompatActivity implements UI {
     }
 
     private void initEstablishmentButtons(){
-        GridLayout grid = (GridLayout)findViewById(R.id.establishmentGrid);
+        GridLayout grid = findViewById(R.id.establishmentGrid);
         int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
         int screenHeight = Resources.getSystem().getDisplayMetrics().heightPixels;
-        ScrollView sv = (ScrollView)findViewById(R.id.townScroll);
+        ScrollView sv = findViewById(R.id.townScroll);
         int scrollWidth = sv.getWidth();
         int width, height;
         if(screenHeight > screenWidth)
@@ -274,7 +270,7 @@ public class InGame extends AppCompatActivity implements UI {
 
     private void initLandmarkButtons(){
         int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
-        LinearLayout landmarkLayout = (LinearLayout)findViewById(R.id.landmarkBar);
+        LinearLayout landmarkLayout = findViewById(R.id.landmarkBar);
         int size = screenWidth / landmarkLayout.getChildCount();
         //this was the easiest way to keep a standard height (width should be set by the XML).
         // Without it, buttons with foregrounds would have different height than those with none
@@ -312,7 +308,7 @@ public class InGame extends AppCompatActivity implements UI {
 
         String message = "(name : money)";
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_PLAYER);
-        frag.show(getFragmentManager(), PickDialogFrag.tag);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void selectPlayer(String playerName){
         logic.selectPlayer(playerName);
@@ -326,7 +322,7 @@ public class InGame extends AppCompatActivity implements UI {
 
         String title = "Select A Card for "+ titleMessage;
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_PLAYERS_CARD);
-        frag.show(getFragmentManager(), PickDialogFrag.tag);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void selectCard(Card pickedCard, String owner){
         logic.selectCard(pickedCard, owner);
@@ -340,7 +336,7 @@ public class InGame extends AppCompatActivity implements UI {
 
         String title = "Buy A Card    (money: "+me.getMoney()+')';
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_MARKETS_CARD);
-        frag.show(getFragmentManager(), PickDialogFrag.tag);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
     @Override
@@ -350,7 +346,7 @@ public class InGame extends AppCompatActivity implements UI {
         String title = "Choose landmark to demolish";
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_LANDMARK);
-        frag.show(getFragmentManager(), PickDialogFrag.tag);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
 
@@ -360,7 +356,7 @@ public class InGame extends AppCompatActivity implements UI {
         String message = "You currently have $"+ currentInvestment+ " invested";
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_TECH);
-        frag.show(getFragmentManager(), PickDialogFrag.tag);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveTechChoice(boolean invest){
         logic.receiveTechChoice(invest);
@@ -371,7 +367,7 @@ public class InGame extends AppCompatActivity implements UI {
         String title = "Add 2 to your roll?";
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_ADD_TWO, d1, d2);
-        frag.show(getFragmentManager(), PickDialogFrag.tag);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveAddTwoChoice(boolean addTwo, int d1, int d2){
         logic.replyToAddTwo(addTwo, d1, d2);
@@ -387,12 +383,17 @@ public class InGame extends AppCompatActivity implements UI {
             message = "original roll: "+d1;
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_REROLL, d1, d2);
-        frag.show(getFragmentManager(), PickDialogFrag.tag);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveRerollChoice(boolean reroll, int d1, int d2){
         logic.radioReply(reroll, d1, d2);
     }
 
+    /*
+     *I am indeed accepting some jank for a smaller app size.
+     * I'm trying to mitigate this downside where possible
+     * (i.e. displaying smaller images since they're sharper, etc)
+     */
     @Override
     public void displayTown(String townName, int money, Establishment[] cityCards, Landmark[] landmarks, boolean myTown) {
         Arrays.sort(cityCards);
@@ -412,7 +413,7 @@ public class InGame extends AppCompatActivity implements UI {
 
     //all players own one of each landmark, so I don't even check for how many there are
     private void displayLandmarkIcons(Landmark[] landmarks){
-        LinearLayout landmarkLayout = (LinearLayout)findViewById(R.id.landmarkBar);
+        LinearLayout landmarkLayout = findViewById(R.id.landmarkBar);
         for(int i = 0; i < landmarks.length; i++){
             ImageButton button = (ImageButton)landmarkLayout.getChildAt(i);
             button.setBackgroundResource(landmarks[i].getGridImageId());
@@ -424,12 +425,8 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
-    //TODO Use .SVG and note how I'm trading jank for a smaller filesize
-    //TODO consider using proper sized images and releasing separate APKs to help solve both issues
-    //TODO (strongly) consider setting the frames up in another thread and display when finished
-    //Even with bitmaps, this can have some jank if it uses larger bitmaps and displays a lot of them
     private void displayEstablishmentIcons(Establishment[] establishments){
-        GridLayout grid = (GridLayout)findViewById(R.id.establishmentGrid);
+        GridLayout grid = findViewById(R.id.establishmentGrid);
         FrameLayout frame;
         //first clears all views set by previous city visited
         for(int i = 0; i < grid.getChildCount(); i++){
@@ -456,38 +453,66 @@ public class InGame extends AppCompatActivity implements UI {
     }
 
     private void displayCard(int imageID){
-        popup = new PopupWindow(this);
+        ImageButton button;
         View rootLayout = findViewById(R.id.activeScreen);
-        //I check both height and width since I want to make sure the whole image fits in the screen
-        int height = rootLayout.getHeight();
-        int width = rootLayout.getWidth();
-        if(height < 1.4 * width)
-            width = (int)(.714 * height);
-        else if(height > 1.4 * width)
-            height = (int)(1.4 * width);
-        popup.setHeight(height);
-        popup.setWidth(width);
-        popup.setBackgroundDrawable(getDrawable(R.drawable.background));
-        ImageButton b = new ImageButton(this);
+        if(popup == null) {
+            popup = new PopupWindow(this);
+            //I don't want to be spending all my memory on redraws, so I'll set a max card size
+            DisplayMetrics d = getResources().getDisplayMetrics();
+            int maxHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 225, d);
+            int maxWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 160, d);
 
-        b.setScaleType(ImageView.ScaleType.FIT_XY);
-        b.setImageResource(imageID);
-        b.setBackgroundColor(Color.TRANSPARENT);
-        b.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if(popup != null) {
-                    popup.dismiss();
-                }
-                popup = null;
-                showArrowBar();
+            int height = rootLayout.getHeight();
+            int width = rootLayout.getWidth();
+            popup.setHeight(height);
+            popup.setWidth(width);
+            popup.setBackgroundDrawable(getDrawable(R.drawable.background));
+
+            //I check both height and width since I want to make sure the whole image fits in the screen
+            int ratio = (int) (1.4 * width);
+            if (height < ratio)
+                width = (int) (.714 * height);
+            else if (height > ratio)
+                height = ratio;
+
+            //If attempted dims is larger than max for one dim, both will be too large. So only check one
+            if (height > maxHeight) {
+                height = maxHeight;
+                width = maxWidth;
             }
-        });
-        popup.setContentView(b);
-        hideArrowBar();
+            int padHeight = (popup.getHeight() - height) / 2;
+            int padWidth = (popup.getWidth() - width) / 2;
+
+            /* I didn't want to define another XML layout just for the popup, nor was I able to stick
+             * a layout in my popup to do what I wanted (large background, much smaller foreground).
+             * In the end, I tried padding the image and it worked just the way I wanted! :D
+             */
+            button = new ImageButton(this);
+            button.setPadding(padWidth, padHeight, padWidth, padHeight);
+            button.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            button.setBackgroundColor(Color.TRANSPARENT);
+            button.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if(popup != null) {
+                        popup.dismiss();
+                    }
+                    popup = null;
+//                showArrowBar();
+                }
+            });
+            popup.setContentView(button);
+        }
+        else
+            button = (ImageButton)popup.getContentView();
+
+        button.setImageResource(imageID);
+
+//        hideArrowBar();
         popup.showAtLocation(rootLayout, Gravity.CENTER|Gravity.TOP, 0, 0);
     }
 
+    //TODO make sure I don't need these two methods, then remove them as well as their calls
     private void hideArrowBar(){
         ViewGroup arrowBar = (RelativeLayout)findViewById(R.id.arrowBar);
         for(int i = 0; i < arrowBar.getChildCount(); i++){
@@ -517,6 +542,7 @@ public class InGame extends AppCompatActivity implements UI {
         ((TextView)findViewById(R.id.coinAmountText)).setText(s);
     }
 
+    //shows a dialog is there is one
     @Override
     public boolean showDialog() {
         if(pickDialog != null) {
@@ -533,7 +559,7 @@ public class InGame extends AppCompatActivity implements UI {
 
     private void reloadDialogFragment(){
         //finds the fragments
-        FragmentManager manager = getFragmentManager();
+        FragmentManager manager = getSupportFragmentManager();
         PickDialogFrag frag = (PickDialogFrag) manager.findFragmentByTag(PickDialogFrag.tag);
         // create the fragment and data the first time
         if (frag == null) {

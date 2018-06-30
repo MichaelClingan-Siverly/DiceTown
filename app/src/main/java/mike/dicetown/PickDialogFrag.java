@@ -1,15 +1,17 @@
 package mike.dicetown;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
-import android.app.DialogFragment;
-import android.app.FragmentManager;
-import android.app.FragmentTransaction;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.DialogFragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentTransaction;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -20,10 +22,8 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import mike.cards.Card;
 import mike.cards.CardInterface;
@@ -58,6 +58,7 @@ public class PickDialogFrag extends DialogFragment {
     private int indexOfLastSelection = -1;
 
     private boolean vertical = true;
+    private InGame game;
 
     int[] metrics;
 
@@ -108,7 +109,7 @@ public class PickDialogFrag extends DialogFragment {
     }
 
     private void findOrientation(){
-        DisplayMetrics displayMetrics = getActivity().getResources().getDisplayMetrics();
+        DisplayMetrics displayMetrics = game.getResources().getDisplayMetrics();
         int width = displayMetrics.widthPixels;
         int height = displayMetrics.heightPixels;
 
@@ -126,24 +127,34 @@ public class PickDialogFrag extends DialogFragment {
     }
 
 
+    /*
+     *This is called after onCreate, which is called after onAttach
+     */
+    @NonNull
     @Override
     public AlertDialog onCreateDialog(Bundle savedInstanceState) {
         Bundle args = getArguments();
         findOrientation();
-        int code = args.getInt("code");
+        setCancelable(false);
+
+        int code = -1;
         //I don't want to have the Activity set the buttons,
         //as it would cause problems if the Actiivty is destroyed and re-created.
         AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+        if(args != null) {
+            code = args.getInt("code");
 
-        if(args.getString("title") != null)
-            builder.setTitle(args.getString("title"));
-        if(args.getString("message") != null)
-            builder.setMessage(args.getString("message"));
+            if (args.getString("title") != null)
+                builder.setTitle(args.getString("title"));
+            if (args.getString("message") != null)
+                builder.setMessage(args.getString("message"));
 
-        //Even if none exists, there won't be problems
-        d1 = args.getInt("d1");
-        d2 = args.getInt("d2");
-
+            //Even if none exists, there won't be problems
+            d1 = args.getInt("d1");
+            d2 = args.getInt("d2");
+        }
+        else
+            builder.setTitle("something went wrong");
 
         //Set appropriate buttons and layouts, if any
         switch(code){
@@ -204,7 +215,6 @@ public class PickDialogFrag extends DialogFragment {
 
         //set the DialogInfo to
         DialogInfo.getInstance().activateDialog();
-        setCancelable(false);
 
         return builder.create();
     }
@@ -242,7 +252,7 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener dontChooseListener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                ((InGame)getActivity()).selectCard(null, null);
+                game.selectCard(null, null);
                 destroyFragment();
             }
         };
@@ -254,7 +264,7 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                ((InGame)getActivity()).receiveAddTwoChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
+                game.receiveAddTwoChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
                 destroyFragment();
             }
         };
@@ -266,7 +276,7 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                ((InGame)getActivity()).receiveRerollChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
+                game.receiveRerollChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
                 destroyFragment();
             }
         };
@@ -278,7 +288,7 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                ((InGame)getActivity()).receiveTechChoice(which == DialogInterface.BUTTON_POSITIVE);
+                game.receiveTechChoice(which == DialogInterface.BUTTON_POSITIVE);
                 destroyFragment();
             }
         };
@@ -295,9 +305,8 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                InGame game = (InGame)getActivity();
                 if(pickedCard != null)
-                    ((InGame)getActivity()).selectCard(pickedCard, playerName);
+                    game.selectCard(pickedCard, playerName);
                 else
                     game.selectPlayer(playerName);
                 destroyFragment();
@@ -308,12 +317,17 @@ public class PickDialogFrag extends DialogFragment {
         enablePosButton = false;
     }
 
-    //both types of ScrollView are subclasses of FrameLayout
+
+    /* I'm ok suppressing this. I use onCreateDialog, and am using it to show an AlertDialog
+     * AlertDialogs seem like the one case when a null root is appropriate.
+     */
+    @SuppressLint("InflateParams")
     private FrameLayout getOuterLayout(){
+        //both types of ScrollView are subclasses of FrameLayout
         if(vertical)
-            return (ScrollView)getActivity().getLayoutInflater().inflate(R.layout.pick_card, null);
+            return (ScrollView)game.getLayoutInflater().inflate(R.layout.pick_card, null);
         else
-            return (HorizontalScrollView)getActivity().getLayoutInflater().inflate(R.layout.pick_card_landscape, null);
+            return (HorizontalScrollView)game.getLayoutInflater().inflate(R.layout.pick_card_landscape, null);
     }
 
     //main difference between pickCard and player layouts are that the pickCard doesn't have player names in it
@@ -324,8 +338,8 @@ public class PickDialogFrag extends DialogFragment {
         CardInterface[] cards = DialogInfo.getInstance().getCards();
         String myName = DialogInfo.getInstance().getMyName();
         for(CardInterface c : cards){
-            FrameLayout frame = new FrameLayout(getActivity());
-            ImageButton button = new ImageButton(getActivity());
+            FrameLayout frame = new FrameLayout(game);
+            ImageButton button = new ImageButton(game);
             addCardToFrame(frame, c, button, myName, makeCardFrameListener());
             layout.addView(frame);
         }
@@ -361,7 +375,7 @@ public class PickDialogFrag extends DialogFragment {
         return new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                LinearLayout buttonLayout = (LinearLayout)getDialog().findViewById(R.id.pickCardLayout);
+                LinearLayout buttonLayout = getDialog().findViewById(R.id.pickCardLayout);
                 if(buttonLayout == null)
                     return;
                 int index = buttonLayout.indexOfChild(v);
@@ -408,7 +422,7 @@ public class PickDialogFrag extends DialogFragment {
             params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             view.setLayoutParams(params);
         }
-        float density = getActivity().getResources().getDisplayMetrics().density;
+        float density = game.getResources().getDisplayMetrics().density;
         params.setMarginEnd((int)(5*density));
         params.setMarginStart((int)(5*density));
     }
@@ -417,8 +431,8 @@ public class PickDialogFrag extends DialogFragment {
         for(Establishment card : owner.getCity()){
             if(!(card instanceof MajorEstablishment)){
 //            if(DialogInfo.getInstance().isNonMajor() ^ card instanceof MajorEstablishment) {
-                FrameLayout frame = new FrameLayout(getActivity());
-                ImageButton button = new ImageButton(getActivity());
+                FrameLayout frame = new FrameLayout(game);
+                ImageButton button = new ImageButton(game);
                 addCardToFrame(frame, card, button, owner.getName(), makeCardFrameListener());
                 String myName = DialogInfo.getInstance().getMyName();
                 try {
@@ -462,7 +476,7 @@ public class PickDialogFrag extends DialogFragment {
         return new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                LinearLayout layout = (LinearLayout)getDialog().findViewById(R.id.pickCardLayout);
+                LinearLayout layout = getDialog().findViewById(R.id.pickCardLayout);
                 if(layout == null)
                     return;
                 int index = layout.indexOfChild((FrameLayout)v.getTag(R.id.frame));
@@ -488,9 +502,9 @@ public class PickDialogFrag extends DialogFragment {
         if(DialogInfo.getInstance().getMyName().equals("market")){
             HasCards buyer = DialogInfo.getInstance().getPlayers()[0];
             if(pickedCard.getCost() > buyer.getMoney())
-                ((InGame)getActivity()).makeToast("too expensive");
+                game.makeToast("too expensive");
             else if(pickedCard instanceof  MajorEstablishment && buyer.getCitySet().contains(pickedCard))
-                ((InGame)getActivity()).makeToast("A city may only contain one of each major establishment");
+                game.makeToast("A city may only contain one of each major establishment");
             else
                 ((AlertDialog)getDialog()).getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(true);
         }
@@ -530,22 +544,16 @@ public class PickDialogFrag extends DialogFragment {
 
 
     private void setMidButtonText(int textID){
-        InGame game = (InGame)getActivity();
-        game.lastMidButtonText = ((Button) game.findViewById(R.id.inGameMiddleButton)).getText().toString();
+        game.setLastMidButtonText(((Button) game.findViewById(R.id.inGameMiddleButton)).getText().toString());
         ((Button) game.findViewById(R.id.inGameMiddleButton)).setText(textID);
     }
 
 
     private void destroyFragment(){
         DialogInfo.getInstance().deactivateDialog();
-        getFragmentManager().beginTransaction().remove(PickDialogFrag.this).commitAllowingStateLoss();
+        game.getSupportFragmentManager().beginTransaction().remove(PickDialogFrag.this).commitAllowingStateLoss();
     }
 
-    public interface AcceptsDialogClicks{
-        //TODO declare what functions InGame should implement, which would be called from the listeners in here
-        //allows InGame to leave their values as private instead of package-protected
-
-    }
 
     /*
      * Below overrides make things a bit easier for me - I don't have to set them everywhere
@@ -567,5 +575,13 @@ public class PickDialogFrag extends DialogFragment {
         DialogInfo.getInstance().setShowing(false);
         super.onDismiss(dialog);
     }
+    @Override
+    public void onAttach(Context context){
+        game = (InGame)context;
+        super.onAttach(context);
+    }
+
+
+    //Removed the interface. This and my Activity are in same package, so there's really no need...
 }
 

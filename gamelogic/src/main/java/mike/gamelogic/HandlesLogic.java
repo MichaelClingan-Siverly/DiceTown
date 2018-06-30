@@ -1,7 +1,6 @@
 package mike.gamelogic;
 
-import android.app.Fragment;
-import android.os.Message;
+import android.support.v4.app.Fragment;
 
 import mike.cards.Card;
 

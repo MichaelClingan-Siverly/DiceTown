@@ -80,7 +80,7 @@ class Dice {
             code = -1;
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, code);
-        frag.show(game.getFragmentManager(), PickDialogFrag.tag);
+        frag.show(game.getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
     static void displayDiceRoll(final int d1, final int d2, final InGame game){
