@@ -3,44 +3,21 @@ package mike.gamelogic;
 
 
 import android.support.v4.util.ArraySet;
-
 import java.util.Arrays;
 
 import mike.cards.Airport;
 import mike.cards.AmusementPark;
 import mike.cards.Bakery;
-import mike.cards.BusinessCenter;
-import mike.cards.Cafe;
 import mike.cards.CardInterface;
 import mike.cards.CityHall;
 import mike.cards.ConstructibleLandmark;
-import mike.cards.ConventionCenter;
-import mike.cards.CornField;
-import mike.cards.DemoCompany;
-import mike.cards.ExclusiveClub;
-import mike.cards.FlowerOrchard;
-import mike.cards.FlowerShop;
 import mike.cards.Harbor;
 import mike.cards.Landmark;
 import mike.cards.Establishment;
-import mike.cards.LoanOffice;
-import mike.cards.MovingCompany;
-import mike.cards.Park;
-import mike.cards.ProduceMarket;
-import mike.cards.Publisher;
 import mike.cards.RadioTower;
-import mike.cards.RenoCompany;
 import mike.cards.ShoppingMall;
-import mike.cards.Stadium;
-import mike.cards.SushiBar;
-import mike.cards.TaxOffice;
-import mike.cards.TechStartup;
 import mike.cards.TrainStation;
-import mike.cards.TunaBoat;
-import mike.cards.TvStation;
-import mike.cards.Vineyard;
 import mike.cards.WheatField;
-import mike.cards.Winery;
 
 /**
  * Created by mike on 7/12/2017.
@@ -112,10 +89,9 @@ public class Player implements HasCards{
         return false;
     }
     public boolean checkIfCardAvailable(Landmark landmark){
-        for(int i = 0; i < myLandmarks.length; i++){
-            if(myLandmarks[i].equals(landmark)){
-                return myLandmarks[i].getNumAvailable() > 0;
-            }
+        for (Landmark mark: myLandmarks) {
+            if(mark.equals(landmark))
+                return mark.getNumAvailable() > 0;
         }
         return false;
     }

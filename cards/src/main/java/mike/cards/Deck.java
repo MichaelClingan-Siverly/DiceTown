@@ -241,93 +241,93 @@ public class Deck {
             case "A":
                 return "Airport";
             case "AP":
-                return "AmusementPark";
+                return "Amusement Park";
             case "AO":
-                return "AppleOrchard";
+                return "Apple Orchard";
             case "B":
                 return "Bakery";
             case "BP":
-                return "BottlingPlant";
+                return "Bottling Plant";
             case "BS":
-                return "BurgerStand";
+                return "Burger Joint";
             case "BC":
-                return "BusinessCenter";
+                return "Business Center";
             case "C":
                 return "Cafe";
             case "CF":
-                return "CheeseFactory";
+                return "Cheese Factory";
             case "CH":
-                return "CityHall";
-            case "CS":
-                return "ConvenienceStore";
+                return "City Hall";
+            case "CS": //convenience store
+                return "Mini-Mart";
             case "CC":
-                return "ConventionCenter";
+                return "Convention Center";
             case "CO": //cornfield
-                return "CornField";
+                return "Corn Field";
             case "DC":
-                return "DemoCompany";
+                return "Demo Company";
             case "EC":
-                return "ExclusiveClub";
+                return "Exclusive Club";
             case "FA": //familyRestaurant
-                return "FamilyRestaurant";
+                return "Sports Bar";
             case "FO":
-                return "FlowerOrchard";
+                return "Flower Orchard";
             case "FS":
-                return "FlowerShop";
+                return "Flower Shop";
             case "FW":
-                return "FoodWarehouse";
+                return "Food Warehouse";
             case "F":
                 return "Forest";
             case "FR":
-                return "FrenchRestaurant";
+                return "French Bistro";
             case "FF":
-                return "FurnitureFactory";
+                return "Furniture Factory";
             case "GS":
-                return "GeneralStore";
+                return "General Store";
             case "H":
-                return "Harbor";
+                return "Wharf";
             case "LO":
-                return "LoanOffice";
+                return "Payday Lender";
             case "MB":
-                return "MackerelBoat";
+                return "Fishing Boat";
             case "M":
                 return "Mine";
             case "MC":
-                return "MovingCompany";
-            case "P":
-                return "Park";
+                return "Moving Company";
+            case "P": //park
+                return "Worker Cooperative";
             case "PJ":
-                return "PizzaJoint";
+                return "Pizza Shop";
             case "PM":
-                return "ProduceMarket";
+                return "Farmers Market";
             case "PB": //publisher
                 return "Publisher";
-            case "RT":
-                return "RadioTower";
+            case "RT": //radio tower
+                return "Cell Tower";
             case "R":
                 return "Ranch";
-            case "RC":
-                return "RenoCompany";
+            case "RC": //reno company
+                return "Home Remodeler";
             case "SM":
-                return "ShoppingMall";
+                return "Shopping Mall";
             case "S":
                 return "Stadium";
             case "SB":
-                return "SushiBar";
+                return "Sushi Bar";
             case "TO":
-                return "TaxOffice";
+                return "Tax Office";
             case "TS":
-                return "TechStartup";
+                return "Tech Startup";
             case "TR": //trainStation
-                return "TrainStation";
+                return "Train Depot";
             case "TB":
-                return "TunaBoat";
+                return "Tuna Boat";
             case "TV":
-                return "TvStation";
+                return "TV Station";
             case "V":
                 return "Vineyard";
             case "WF":
-                return "WheatField";
+                return "Wheat Field";
             default:
                 return "Winery";
         }

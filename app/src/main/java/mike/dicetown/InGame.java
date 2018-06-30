@@ -10,6 +10,7 @@ import android.content.ServiceConnection;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.IBinder;
@@ -275,12 +276,15 @@ public class InGame extends AppCompatActivity implements UI {
         int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
         LinearLayout landmarkLayout = (LinearLayout)findViewById(R.id.landmarkBar);
         int size = screenWidth / landmarkLayout.getChildCount();
+        //this was the easiest way to keep a standard height (width should be set by the XML).
+        // Without it, buttons with foregrounds would have different height than those with none
+        ViewGroup.LayoutParams params = landmarkLayout.getLayoutParams();
+        params.height = size;
+
         ImageButton button;
         for(int i = 0; i < landmarkLayout.getChildCount(); i++){
             button = (ImageButton)landmarkLayout.getChildAt(i);
-            button.setAdjustViewBounds(true);
-            button.setMaxHeight(size);
-            button.setScaleType(ImageView.ScaleType.FIT_END);
+            button.setScaleType(ImageView.ScaleType.FIT_CENTER);
             button.setOnClickListener(cardClickListener);
         }
         //I want to have the landmarks made so I can find the right size
@@ -433,8 +437,6 @@ public class InGame extends AppCompatActivity implements UI {
             frame.removeAllViews();
             frame.setVisibility(View.GONE);
         }
-        //I want cards to keep a nice poker card size ratio, and for a full row to take up screen width
-//        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         Establishment e;
 
         for(int i = 0; i < establishments.length; i++) {
@@ -474,8 +476,9 @@ public class InGame extends AppCompatActivity implements UI {
         b.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(popup != null)
+                if(popup != null) {
                     popup.dismiss();
+                }
                 popup = null;
                 showArrowBar();
             }

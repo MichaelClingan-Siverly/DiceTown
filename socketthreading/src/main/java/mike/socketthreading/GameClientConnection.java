@@ -152,7 +152,6 @@ class GameClientConnection {
         }
         @Override
         public void run() {
-            Log.d("ping", "ping sent to " + i);
             SocketContainer cont;
             synchronized (lock){
                 cont = sockets.get(i);
@@ -228,7 +227,6 @@ class GameClientConnection {
                                         sendDataHelper("pong", index);
                                         break;
                                     case "pong":
-                                        Log.d("ping", "pong returned from "+ index);
                                         synchronized (lock){
                                             if(sockets.get(index) != null) {
                                                 sockets.get(index).active = true;
