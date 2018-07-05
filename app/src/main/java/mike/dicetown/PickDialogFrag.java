@@ -235,7 +235,7 @@ public class PickDialogFrag extends DialogFragment {
             public boolean onKey(DialogInterface dialogI, int keyCode, KeyEvent event) {
                 if ((keyCode ==  android.view.KeyEvent.KEYCODE_BACK))
                 {
-                    setMidButtonText(R.string.backToPick);
+                    game.pausePickToViewTowns();
                     dismiss();
                     // To dismiss the fragment when the back-button is pressed.
                     return true;
@@ -518,7 +518,7 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener diceListener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                setMidButtonText(R.string.backToPick);
+                game.pausePickToViewTowns();
             }
         };
         builder.setNeutralButton(R.string.viewTowns, diceListener);
@@ -542,11 +542,6 @@ public class PickDialogFrag extends DialogFragment {
         };
     }
 
-
-    private void setMidButtonText(int textID){
-        game.setLastMidButtonText(((Button) game.findViewById(R.id.inGameMiddleButton)).getText().toString());
-        ((Button) game.findViewById(R.id.inGameMiddleButton)).setText(textID);
-    }
 
 
     private void destroyFragment(){

@@ -6,7 +6,12 @@ import mike.cards.Card;
 
 /**
  * Created by mike on 7/30/2017.
- * Must be a class since I'm working with Fragments.
+ * This doesn't have to be a class - having it an interface and letting the implementations
+ * decide to be fragments or not would be more flexible.
+ * But I want it to extend Fragment, as I want it to be able to work as I expect it to,
+ * persist through screen changes and not be remade, so I'm making it a Fragment.
+ * I also don't think that anything using an implementation of this should be expected
+ * to know that I intend this to be a Fragment
  */
 
 public abstract class HandlesLogic extends Fragment {

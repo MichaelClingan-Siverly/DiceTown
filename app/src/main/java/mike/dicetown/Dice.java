@@ -46,10 +46,10 @@ class Dice {
     }
 
     static void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat, int rerollDice, final InGame game){
-        if(game.popup != null) {
-            game.popup.dismiss();
-            game.popup = null;
-        }
+//        if(game.popup != null) {
+//            game.popup.dismiss();
+//            game.popup = null;
+//        }
 
         String title;
         boolean oneDice = false;
@@ -83,6 +83,9 @@ class Dice {
         frag.show(game.getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
+    /* This is here and not in the PickDialogFrag because I don't need the user to make
+     * any decision. So I just used a PopupWindow for it.
+     */
     static void displayDiceRoll(final int d1, final int d2, final InGame game){
         roll1 = d1;
         roll2 = d2;
@@ -101,8 +104,8 @@ class Dice {
         }
 
         //I'm doing a bunch of work to make it look all nice and fancy below this comment.
-        game.popup = new PopupWindow(game);
-        game.popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        PopupWindow popup = new PopupWindow(game);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         //finds width of the screen
         int size = rootLayout.getWidth();
         size = size/3;
@@ -138,12 +141,13 @@ class Dice {
         view = createDiceView(rollOneAnimation, params, game);
         diceLayout.addView(view);
 
-        game.popup.setWidth(rootLayout.getWidth());
-        game.popup.setHeight(rootLayout.getHeight());
-        game.popup.setContentView(diceLayout);
-        game.popup.setBackgroundDrawable(game.getDrawable(R.drawable.background));
+        popup.setWidth(rootLayout.getWidth());
+        popup.setHeight(rootLayout.getHeight());
+        popup.setContentView(diceLayout);
+        popup.setBackgroundDrawable(game.getDrawable(R.drawable.background));
 
-        game.popup.showAtLocation(rootLayout, Gravity.CENTER, 0, 0);
+        popup.showAtLocation(rootLayout, Gravity.CENTER, 0, 0);
+        game.setPopup(popup);
         //start the animations after all the layouts are set up and displaying
         rollOneAnimation.start();
         if(d2 > 0)
@@ -176,9 +180,11 @@ class Dice {
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(game.popup != null)
-                    game.popup.dismiss();
-                game.popup = null;
+                PopupWindow popup = game.getPopup();
+                if(popup != null)
+                    popup.dismiss();
+                else
+                    game.setPopup(null);
                 game.finishRoll(roll1, roll2);
             }
         });

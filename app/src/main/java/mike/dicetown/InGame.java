@@ -13,7 +13,6 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.support.v4.app.FragmentManager;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
@@ -27,7 +26,6 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
-import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -52,10 +50,10 @@ public class InGame extends AppCompatActivity implements UI {
     private boolean mIsBound = false;
     private final Messenger mMessenger = new Messenger(new IncomingHandler(InGame.this));
     private HandlesLogic logic;
-    AlertDialog pickDialog = null;
     private boolean establishmentsMade;
-    PopupWindow popup;
-
+    //For things which don't need to persist through screen changes. Stored so I can dismiss it
+    private PopupWindow popup;
+    //used when users close the pick dialog before a choice is made in order to view towns
     private String lastMidButtonText;
 
     //requires v to have a tag set with the resource id of the card
@@ -161,7 +159,6 @@ public class InGame extends AppCompatActivity implements UI {
 
     //this needs to be public because Buttons made in xml use it
     public void middleButton(View view){
-        resetMidButtonText();
         logic.middleButtonPressed();
     }
 
@@ -180,16 +177,14 @@ public class InGame extends AppCompatActivity implements UI {
         logic.diceRolled(roll1, roll2);
     }
 
-    private void resetMidButtonText() {
-        Button b = findViewById(R.id.inGameMiddleButton);
-        if (b.getText().equals(getString(R.string.backToPick)) || b.getText().equals(getString(R.string.rollDice))) {
-            b.setText(lastMidButtonText);
-            lastMidButtonText = null;
+    void pausePickToViewTowns(){
+        Button midButton = findViewById(R.id.inGameMiddleButton);
+        String currentMidButtonText = midButton.getText().toString();
+
+        if(!getString(R.string.backToOwnCity).equals(currentMidButtonText)) {
+            lastMidButtonText = currentMidButtonText;
+            midButton.setText(R.string.backToPick);
         }
-        //dont need to try showing the dialog here. Logic should tell me when to do it
-    }
-    void setLastMidButtonText(String text){
-        lastMidButtonText = text;
     }
 
     //I need both the service bound and the logic fragment attached to proceed.
@@ -299,6 +294,14 @@ public class InGame extends AppCompatActivity implements UI {
             logic.goToNextTown();
     }
 
+    void setPopup(PopupWindow p){
+        popup = p;
+    }
+
+    PopupWindow getPopup(){
+        return popup;
+    }
+
 
 
     @Override
@@ -401,12 +404,17 @@ public class InGame extends AppCompatActivity implements UI {
 
         ((TextView)findViewById(R.id.townName)).setText(townName);
         changeMoney(money);
-        if(!DialogInfo.getInstance().checkIfDialogActive()) {
-            if (myTown)
-                ((Button) findViewById(R.id.inGameMiddleButton)).setText(R.string.toMarketplace);
-            else
-                ((Button) findViewById(R.id.inGameMiddleButton)).setText(R.string.backToOwnCity);
-        }
+
+        int textResource;
+        if(!myTown)
+            textResource = R.string.backToOwnCity;
+        else if(!DialogInfo.getInstance().checkIfDialogActive())
+            textResource = R.string.toMarketplace;
+        else
+            textResource = R.string.backToPick;
+
+        ((Button) findViewById(R.id.inGameMiddleButton)).setText(textResource);
+
         displayLandmarkIcons(landmarks);
         displayEstablishmentIcons(cityCards);
     }
@@ -491,6 +499,7 @@ public class InGame extends AppCompatActivity implements UI {
             button.setPadding(padWidth, padHeight, padWidth, padHeight);
             button.setScaleType(ImageView.ScaleType.FIT_CENTER);
             button.setBackgroundColor(Color.TRANSPARENT);
+            //Whole thing is a button, so clicking anywhere would call this
             button.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -498,7 +507,6 @@ public class InGame extends AppCompatActivity implements UI {
                         popup.dismiss();
                     }
                     popup = null;
-//                showArrowBar();
                 }
             });
             popup.setContentView(button);
@@ -508,22 +516,7 @@ public class InGame extends AppCompatActivity implements UI {
 
         button.setImageResource(imageID);
 
-//        hideArrowBar();
         popup.showAtLocation(rootLayout, Gravity.CENTER|Gravity.TOP, 0, 0);
-    }
-
-    //TODO make sure I don't need these two methods, then remove them as well as their calls
-    private void hideArrowBar(){
-        ViewGroup arrowBar = (RelativeLayout)findViewById(R.id.arrowBar);
-        for(int i = 0; i < arrowBar.getChildCount(); i++){
-            arrowBar.getChildAt(i).setVisibility(View.GONE);
-        }
-    }
-    private void showArrowBar(){
-        ViewGroup arrowBar = (RelativeLayout)findViewById(R.id.arrowBar);
-        for(int i = 0; i < arrowBar.getChildCount(); i++){
-            arrowBar.getChildAt(i).setVisibility(View.VISIBLE);
-        }
     }
 
     @Override
@@ -545,13 +538,11 @@ public class InGame extends AppCompatActivity implements UI {
     //shows a dialog is there is one
     @Override
     public boolean showDialog() {
-        if(pickDialog != null) {
-            pickDialog.show();
-            return true;
-        }
-        else if(DialogInfo.getInstance().checkIfDialogActive()){
-            if(!DialogInfo.getInstance().isShowing())
+        if(DialogInfo.getInstance().checkIfDialogActive()){
+            if(!DialogInfo.getInstance().isShowing()) {
                 reloadDialogFragment();
+            }
+            //else, it's already showing
             return true;
         }
         return false;

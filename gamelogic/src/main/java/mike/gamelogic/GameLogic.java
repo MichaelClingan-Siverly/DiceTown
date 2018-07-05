@@ -203,7 +203,7 @@ public class GameLogic extends HandlesLogic {
         if(market.contains(card)){
             int index = market.indexOf(card);
             Establishment e = market.valueAt(index);
-            if(e.getNumCopies() > 1)
+            if(e != null && e.getNumCopies() > 1)
                 e.removeCopy();
             else {
                 market.removeAt(index);
@@ -1253,11 +1253,10 @@ public class GameLogic extends HandlesLogic {
 
     @Override
     public void middleButtonPressed() {
-        if(!ui.showDialog()) {
-            if (townIndexBeingShown != myPlayerOrder)
-                displayTown(myPlayerOrder);
-            else
-                displayTown(marketTownIndex); //market is not a town, but it is displayed like one
+        if(townIndexBeingShown != myPlayerOrder)
+            displayTown(myPlayerOrder);
+        else if(!ui.showDialog()) {
+            displayTown(marketTownIndex); //market is not a town, but it is displayed like one
         }
     }
 
