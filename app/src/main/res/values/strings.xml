@@ -18,6 +18,10 @@
     <string name="continuePrompt">"Press to continue"</string>
     <string name="backToPick">back to pick</string>
     <string name="coinImage">coin icon</string>
+    <string name="gameOver">Game Over</string>
+    <string name="youWin">You Win!</string>
+    <string name="otherWin">%1$s Wins!</string>
+    <string name="endGame">End Game</string>
 
     <string name="cHall">city hall icon</string>
     <string name="harbor">harbor icon</string>

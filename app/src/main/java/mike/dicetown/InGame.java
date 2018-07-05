@@ -148,6 +148,17 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
+    @Override
+    public void endGame(String winnerName){
+        String message;
+        if(winnerName == null)
+            message = getString(R.string.youWin);
+        else
+            message = getString(R.string.otherWin, winnerName);
+        PickDialogFrag frag = PickDialogFrag.newInstance(getString(R.string.gameOver), message, PickDialogFrag.NO_PICK_GAME_WON);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+    }
+
     private void stopService(){
         if(mIsBound){
             int myOrder = logic.getPlayerOrder();

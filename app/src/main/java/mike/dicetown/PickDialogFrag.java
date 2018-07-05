@@ -48,6 +48,7 @@ public class PickDialogFrag extends DialogFragment {
     public static final int PICK_ROLL_TWO = 7;
     public static final int PICK_ROLL_ONE = 8;
     public static final int PICK_ROLL_ANY = 9;
+    public static final int NO_PICK_GAME_WON = 10;
     public static final String tag = "dialog";
 
 
@@ -209,6 +210,11 @@ public class PickDialogFrag extends DialogFragment {
                 setPickDiceTwo(builder);
                 setNeutralToViewTown(builder);
                 break;
+            case NO_PICK_GAME_WON:
+                //positive, neutral
+                setNeutralToViewTown(builder);
+                setEndGameButton(builder);
+                break;
             default: //only viewing towns
                 //neutral
         }
@@ -245,6 +251,18 @@ public class PickDialogFrag extends DialogFragment {
                     return false;
             }
         });
+    }
+
+
+    private void setEndGameButton(AlertDialog.Builder builder){
+        DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                game.onBackPressed();
+                destroyFragment();
+            }
+        };
+        builder.setPositiveButton(R.string.endGame, listener);
     }
 
 

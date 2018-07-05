@@ -55,30 +55,26 @@ public class Player implements HasCards{
             }
         }
     }
-    //all players own their landmarks, they just need to be built (not added)
-    public void buyCard(ConstructibleLandmark card){
+    /**
+     * all players own their landmarks, they just need to be built (not added)
+     * @return true if player has won the game, false if not
+     */
+    boolean buyCard(ConstructibleLandmark card){
         if(card.getCost() <= money){
             money -= card.getCost();
             for(Landmark landmark : myLandmarks){
                 if(landmark.equals(card)){
                     landmark.finishRenovation();
-                    return;
+                    //added 1 because City Hall isn't counted as a constructed landmark
+                    return getNumConstructedLandmarks()+1 == myLandmarks.length;
                 }
             }
         }
+        return false;
     }
     @Override
     public Landmark[] getLandmarks(){
         return myLandmarks;
-    }
-
-    //a player wins the game if all their landmarks are constructed
-    public boolean checkIfGameWon() {
-        for(Landmark card : myLandmarks){
-            if(card.getNumAvailable() == 0)
-                return false;
-        }
-        return true;
     }
 
     public boolean checkIfCardAvailable(Establishment building){

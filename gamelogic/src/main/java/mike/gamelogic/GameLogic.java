@@ -1127,7 +1127,8 @@ public class GameLogic extends HandlesLogic {
                         if (players[activePlayer].checkIfCardAvailable(new Airport())) {
                             players[activePlayer].makeMoney(10);
                             ui.makeToast(players[activePlayer].getName() + " makes $10 from Airport");
-                        } else {
+                        }
+                        else {
                             ui.makeToast(players[activePlayer].getName() + " doesn't buy anything");
                         }
                         if (myPlayerOrder == 0) {
@@ -1136,21 +1137,10 @@ public class GameLogic extends HandlesLogic {
                         }
                     }
                     else {
-                        p = players[activePlayer];
-                        final ArraySet<String> landmarkCodes = new ArraySet<>(Arrays.asList("H", "TR", "SM", "RT", "AP", "A"));
-                        ui.makeToast(p.getName() + " buys " + (Deck.getCardNameFromCode(map.value)));
-                        if (landmarkCodes.contains(map.value))
-                            p.buyCard((ConstructibleLandmark) Deck.getCardFromCode(map.value));
-                        else {
-                            p.buyCard((Establishment) Deck.getCardFromCode(map.value));
-                            removeFromMarket((Establishment) Deck.getCardFromCode(map.value));
-                        }
-                        if (townIndexBeingShown == activePlayer)
-                            displayTown(activePlayer);
-                        if (myPlayerOrder == 0) {
+                        if(myPlayerOrder == 0)
                             ui.sendMessage(dataString, -1, playerOrderWhoSentThis);
-                            checkTech();
-                        }
+                        ui.makeToast(players[activePlayer].getName() + " buys " + (Deck.getCardNameFromCode(map.value)));
+                        buyCard(Deck.getCardFromCode(map.value));
                     }
                     break;
                 }
@@ -1204,6 +1194,28 @@ public class GameLogic extends HandlesLogic {
                     }
             }
         }
+    }
+
+    private void buyCard(Card card){
+            Player p = players[activePlayer];
+            boolean playerWins = false;
+            if (card instanceof ConstructibleLandmark)
+                playerWins = p.buyCard((ConstructibleLandmark) card);
+            else{
+                p.buyCard((Establishment) card);
+                removeFromMarket((Establishment) card);
+            }
+            if (townIndexBeingShown == activePlayer)
+                displayTown(activePlayer);
+
+            if(playerWins) {
+                if(activePlayer == myPlayerOrder)
+                    ui.endGame(null);
+                else
+                    ui.endGame(p.getName());
+            }
+            else if (myPlayerOrder == 0)
+                checkTech();
     }
 
     private void removePlayer(int playerOrder){
@@ -1333,21 +1345,13 @@ public class GameLogic extends HandlesLogic {
                         displayTown(activePlayer);
                 }
                 ui.sendMessage(ADD_TO_CITY+":0", -1, -1);
+                if(myPlayerOrder == 0) {
+                    checkTech();
+                }
             }
             else{
-                final ArraySet<String> landmarkCodes = new ArraySet<>(Arrays.asList("H", "TR", "SM", "RT", "AP", "A"));
-                if(landmarkCodes.contains(card.getCode()))
-                    players[activePlayer].buyCard((ConstructibleLandmark) Deck.getCardFromCode(card.getCode()));
-                else {
-                    players[activePlayer].buyCard((Establishment) Deck.getCardFromCode(card.getCode()));
-                    removeFromMarket((Establishment)Deck.getCardFromCode(card.getCode()));
-                }
                 ui.sendMessage(ADD_TO_CITY+":"+card.getCode(), -1, -1);
-                if(townIndexBeingShown == myPlayerOrder)
-                    displayTown(myPlayerOrder);
-            }
-            if(myPlayerOrder == 0) {
-                checkTech();
+                buyCard(card);
             }
         }
     }
