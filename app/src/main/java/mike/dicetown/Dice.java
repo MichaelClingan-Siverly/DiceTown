@@ -183,8 +183,7 @@ class Dice {
                 PopupWindow popup = game.getPopup();
                 if(popup != null)
                     popup.dismiss();
-                else
-                    game.setPopup(null);
+                game.setPopup(null);
                 game.finishRoll(roll1, roll2);
             }
         });
