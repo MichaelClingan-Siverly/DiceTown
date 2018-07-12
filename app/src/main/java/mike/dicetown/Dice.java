@@ -46,10 +46,10 @@ class Dice {
     }
 
     static void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat, int rerollDice, final InGame game){
-//        if(game.popup != null) {
-//            game.popup.dismiss();
-//            game.popup = null;
-//        }
+        if(game.getPopup() != null) {
+            game.getPopup().dismiss();
+            game.setPopup(null);
+        }
 
         String title;
         boolean oneDice = false;

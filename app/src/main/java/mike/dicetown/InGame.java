@@ -348,7 +348,8 @@ public class InGame extends AppCompatActivity implements UI {
         DialogInfo.getInstance().setCards(me.mergeLandmarksAndMarket(market));
         DialogInfo.getInstance().setPlayers(new Player[]{me});
 
-        String title = "Buy A Card    (money: "+me.getMoney()+')';
+        final String title = "Buy A Card    (money: "+me.getMoney()+')';
+
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_MARKETS_CARD);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
@@ -379,7 +380,6 @@ public class InGame extends AppCompatActivity implements UI {
     @Override
     public void askIfAddTwo(final int d1, final int d2) {
         String title = "Add 2 to your roll?";
-
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_ADD_TWO, d1, d2);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
@@ -471,36 +471,52 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
+    /**
+     *
+     * @param layoutWidth width of the layout this card will be sized in comparison to
+     * @param layoutHeight height of the layout this card will be sized in comparison to
+     * @return int array holding card dimensions in pixels,
+     * with index 0 having the width, and 1 having the height
+     */
+    int[] getLargeCardDimensions(int layoutWidth, int layoutHeight){
+        DisplayMetrics d = getResources().getDisplayMetrics();
+        //max height and width are 225 and 160 (respectively) dp, converted to px
+        int maxHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 225, d);
+        int maxWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 160, d);
+        int height = layoutHeight;
+        int width = layoutWidth;
+
+        //I check both height and width since I want to make sure the whole image fits in the screen
+        int ratio = (int) (1.4 * width);
+        if (height < ratio)
+            width = (int) (.714 * height);
+        else if (height > ratio)
+            height = ratio;
+
+        //If attempted dims is larger than max for one dim, both will be too large. So only check one
+        if (height > maxHeight) {
+            height = maxHeight;
+            width = maxWidth;
+        }
+        return new int[]{width, height};
+    }
+
     private void displayCard(int imageID){
         ImageButton button;
         View rootLayout = findViewById(R.id.activeScreen);
         if(popup == null) {
             popup = new PopupWindow(this);
             //I don't want to be spending all my memory on redraws, so I'll set a max card size
-            DisplayMetrics d = getResources().getDisplayMetrics();
-            int maxHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 225, d);
-            int maxWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 160, d);
-
             int height = rootLayout.getHeight();
             int width = rootLayout.getWidth();
             popup.setHeight(height);
             popup.setWidth(width);
             popup.setBackgroundDrawable(getDrawable(R.drawable.background));
 
-            //I check both height and width since I want to make sure the whole image fits in the screen
-            int ratio = (int) (1.4 * width);
-            if (height < ratio)
-                width = (int) (.714 * height);
-            else if (height > ratio)
-                height = ratio;
+            int[] dims = getLargeCardDimensions(width, height);
 
-            //If attempted dims is larger than max for one dim, both will be too large. So only check one
-            if (height > maxHeight) {
-                height = maxHeight;
-                width = maxWidth;
-            }
-            int padHeight = (popup.getHeight() - height) / 2;
-            int padWidth = (popup.getWidth() - width) / 2;
+            int padWidth = (popup.getWidth() - dims[0]) / 2;
+            int padHeight = (popup.getHeight() - dims[1]) / 2;
 
             /* I didn't want to define another XML layout just for the popup, nor was I able to stick
              * a layout in my popup to do what I wanted (large background, much smaller foreground).

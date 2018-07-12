@@ -80,13 +80,14 @@ public abstract class Card implements CardInterface{
         }
     }
 
-    void setPadding(TextView tv, boolean addMargin, boolean forReno){
+    //adds padding for the textviews on cards which display number of copies owned or renovated
+    private void setPadding(TextView tv, boolean addMargin, boolean forReno){
         int botPad = 2;
         int rightPad = 0;
         int leftPad = 0;
         if(addMargin){
-            tv.setTextSize(35);
-            botPad = 20;
+            tv.setTextSize(22);
+            botPad = 12;
             if(forReno)
                 leftPad = 20;
             else
