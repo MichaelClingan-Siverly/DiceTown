@@ -63,10 +63,10 @@ public class PickDialogFrag extends DialogFragment {
     private String playerName = null;
     private Card pickedCard = null;
     private int d1, d2;
-    private int indexOfLastSelection = -1;
 
     private boolean vertical = true;
     private InGame game;
+    private DialogInfo info; //set during OnCreateDialog
 
     int[] metrics;
 
@@ -108,7 +108,7 @@ public class PickDialogFrag extends DialogFragment {
         setDialogInfo(title, message, code);
         return frag;
     }
-
+    //prepares the DialogInfo for use in this class, but doesn't set the global info variable
     private static void setDialogInfo(String title, String message, int code){
         DialogInfo info = DialogInfo.getInstance();
         info.setCode(code);
@@ -124,12 +124,6 @@ public class PickDialogFrag extends DialogFragment {
         int height = displayMetrics.heightPixels;
 
         vertical = width <= height;
-
-//        if(vertical)
-//            width = (int)(width * .8);
-//        else
-//            height = (int)(height * .5);
-
         metrics = game.getLargeCardDimensions(width, height);
     }
 
@@ -141,10 +135,10 @@ public class PickDialogFrag extends DialogFragment {
     public AlertDialog onCreateDialog(Bundle savedInstanceState) {
         findOrientation();
         setCancelable(false);
+        info = DialogInfo.getInstance();
         AlertDialog.Builder builder = prepareBuilder();
 
-        //set the DialogInfo to
-        DialogInfo.getInstance().activateDialog();
+        info.activateDialog();
 
         return builder.create();
     }
@@ -185,7 +179,7 @@ public class PickDialogFrag extends DialogFragment {
             case PICK_PLAYERS_CARD: //expects that caller has set nonMajor, players, and myName in the DialogInfo
                 //positive, neutral, negative
                 setPickPlayerOrCardListeners(builder);
-                if(!DialogInfo.getInstance().isForcingChoice())
+                if(!info.isForcingChoice())
                     setMarketNegButton(builder, "no");
                 setPickPlayersCardLayout(builder);
                 break;
@@ -240,6 +234,7 @@ public class PickDialogFrag extends DialogFragment {
 
     /* Although a number of dialogs don't have an explicit button to dismiss and view towns,
      * I still want users to get the behavior they'd expect from pressing the back button.
+     * The Dialog is visible at this point, so I can now do things like
      */
     @Override
     public void onResume(){
@@ -271,8 +266,8 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialogInterface, int i) {
-                game.onBackPressed();
                 destroyFragment();
+                game.onBackPressed();
             }
         };
         builder.setPositiveButton(R.string.endGame, listener);
@@ -283,8 +278,8 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener dontChooseListener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                game.selectCard(null, null);
                 destroyFragment();
+                game.selectCard(null, null);
             }
         };
         builder.setNegativeButton(buttonMessage, dontChooseListener);
@@ -295,8 +290,8 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                game.receiveAddTwoChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
                 destroyFragment();
+                game.receiveAddTwoChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
             }
         };
         setPosAndNegButtons(builder, listener);
@@ -307,8 +302,8 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                game.receiveRerollChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
                 destroyFragment();
+                game.receiveRerollChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
             }
         };
         setPosAndNegButtons(builder, listener);
@@ -319,8 +314,8 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                game.receiveTechChoice(which == DialogInterface.BUTTON_POSITIVE);
                 destroyFragment();
+                game.receiveTechChoice(which == DialogInterface.BUTTON_POSITIVE);
             }
         };
         setPosAndNegButtons(builder, listener);
@@ -336,11 +331,11 @@ public class PickDialogFrag extends DialogFragment {
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
+                destroyFragment();
                 if(pickedCard != null)
                     game.selectCard(pickedCard, playerName);
                 else
                     game.selectPlayer(playerName);
-                destroyFragment();
             }
         };
         builder.setPositiveButton("ok", listener);
@@ -366,14 +361,21 @@ public class PickDialogFrag extends DialogFragment {
         FrameLayout outerLayout = getOuterLayout();
         LinearLayout layout = (LinearLayout) outerLayout.getChildAt(0);
 
-        CardInterface[] cards = DialogInfo.getInstance().getCards();
-        String myName = DialogInfo.getInstance().getMyName();
+        CardInterface[] cards = info.getCards();
+        String myName = info.getMyName();
         for(CardInterface c : cards){
             FrameLayout frame = new FrameLayout(game);
             ImageButton button = new ImageButton(game);
             addCardToFrame(frame, c, button, myName, makeCardFrameListener());
             layout.addView(frame);
         }
+        //I'm trying to get the Dialog to remember choices made through orientation changes, etc.
+        int prevSelection = info.getIndexOfSelection();
+        if(prevSelection >= 0) {
+            addSelectionBorder(layout, prevSelection);
+            enablePosButton = true; //TODO nothing really, just marking this line because its how I remember selections
+        }
+
         builder.setView(outerLayout);
     }
 
@@ -383,8 +385,8 @@ public class PickDialogFrag extends DialogFragment {
         View.OnClickListener buttonListener = makePlayerLayoutListener();
 
         //if players is null, I'll let it crash
-        HasCards[] players = DialogInfo.getInstance().getPlayers();
-        String myName = DialogInfo.getInstance().getMyName();
+        HasCards[] players = info.getPlayers();
+        String myName = info.getMyName();
 
         for(HasCards player : players){
             if(!player.getName().equals(myName)){
@@ -399,7 +401,16 @@ public class PickDialogFrag extends DialogFragment {
                 layout.addView(b);
             }
         }
+        if(info.getIndexOfSelection() >= 0){
+            highlightPlayerName(layout.getChildAt(info.getIndexOfSelection()));
+            enablePosButton = true;
+        }
         builder.setView(outerLayout);
+    }
+
+    private void highlightPlayerName(View v){
+        v.setBackgroundColor(Color.GRAY);
+        playerName = (String)v.getTag();
     }
 
     private View.OnClickListener makePlayerLayoutListener(){
@@ -412,11 +423,10 @@ public class PickDialogFrag extends DialogFragment {
                 int index = buttonLayout.indexOfChild(v);
 
                 //check if old index has a border and remove it if it does
-                if(indexOfLastSelection >= 0)
-                    buttonLayout.getChildAt(indexOfLastSelection).setBackgroundResource(android.R.drawable.btn_default);
-                indexOfLastSelection = index;
-                v.setBackgroundColor(Color.GRAY);
-                playerName = (String)v.getTag();
+                if(info.getIndexOfSelection() >= 0)
+                    buttonLayout.getChildAt(info.getIndexOfSelection()).setBackgroundResource(android.R.drawable.btn_default);
+                info.setIndexOfSelection(index);
+                highlightPlayerName(v);
                 //I want to only enable this button after a choice has been made
                 ((AlertDialog)getDialog()).getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(true);
             }
@@ -427,7 +437,7 @@ public class PickDialogFrag extends DialogFragment {
     private void setPickPlayersCardLayout(AlertDialog.Builder builder){
         FrameLayout outerLayout = getOuterLayout();
         LinearLayout layout = (LinearLayout) outerLayout.getChildAt(0);
-        HasCards[] cardOwners = DialogInfo.getInstance().getPlayers();
+        HasCards[] cardOwners = info.getPlayers();
 
         //first a player's name and cards are displayed before another player is displayed
         for(HasCards owner : cardOwners){
@@ -444,6 +454,11 @@ public class PickDialogFrag extends DialogFragment {
             //this is displaying a player's cards
             addPlayersCards(layout, owner);
         }
+        if(info.getIndexOfSelection() >= 0){
+            enablePosButton = true;
+            addSelectionBorder(layout, info.getIndexOfSelection());
+        }
+
         builder.setView(outerLayout);
     }
 
@@ -461,11 +476,10 @@ public class PickDialogFrag extends DialogFragment {
     private void addPlayersCards(LinearLayout layout, HasCards owner){
         for(Establishment card : owner.getCity()){
             if(!(card instanceof MajorEstablishment)){
-//            if(DialogInfo.getInstance().isNonMajor() ^ card instanceof MajorEstablishment) {
                 FrameLayout frame = new FrameLayout(game);
                 ImageButton button = new ImageButton(game);
                 addCardToFrame(frame, card, button, owner.getName(), makeCardFrameListener());
-                String myName = DialogInfo.getInstance().getMyName();
+                String myName = info.getMyName();
                 try {
                     Establishment e = card.getClass().getConstructor().newInstance();
                     //if I have to select my own card, its probably to give it to someone. Give them cards under renovation first
@@ -490,7 +504,6 @@ public class PickDialogFrag extends DialogFragment {
         button.setLayoutParams(params);
         button.setImageResource(card.getFullImageId());
         button.setBackground(null);
-//        button.setBackgroundResource(card.getFullImageId());
         button.setScaleType(ImageView.ScaleType.FIT_XY);
         button.setOnClickListener(cardListener);
         frame.addView(button);
@@ -511,30 +524,37 @@ public class PickDialogFrag extends DialogFragment {
                 LinearLayout layout = getDialog().findViewById(R.id.pickCardLayout);
                 if(layout == null)
                     return;
-                int index = layout.indexOfChild((FrameLayout)v.getTag(R.id.frame));
-                ImageView border = new ImageView(game);
-                border.setScaleType(ImageView.ScaleType.FIT_XY);
-                border.setImageResource(R.drawable.selected_border);
-                //check if old index has a border and remove it if it does
-                if(indexOfLastSelection >= 0){
-                    int numChildren =((FrameLayout)layout.getChildAt(indexOfLastSelection)).getChildCount();
-                    ((FrameLayout)layout.getChildAt(indexOfLastSelection)).removeViewAt(numChildren - 1);
-                }
 
-                //add border to newly selected index
-                ((FrameLayout)layout.getChildAt(index)).addView(border);
-                playerName = (String)v.getTag(R.id.cardOwner);
-                pickedCard = (Card) v.getTag(R.id.card);
-                indexOfLastSelection = index;
+                //check if old index has a border and remove it if it does
+                if(info.getIndexOfSelection() >= 0){
+                    int numChildren =((FrameLayout)layout.getChildAt(info.getIndexOfSelection())).getChildCount();
+                    ((FrameLayout)layout.getChildAt(info.getIndexOfSelection())).removeViewAt(numChildren - 1);
+                }
+                //and then add the new border
+                int index = layout.indexOfChild((FrameLayout)v.getTag(R.id.frame));
+                info.setIndexOfSelection(index);
+                addSelectionBorder(layout, index);
 
                 checkToEnablePosButton();
             }
         };
     }
 
+    private void addSelectionBorder(LinearLayout layout, int childIndex){
+        ImageView border = new ImageView(game);
+        border.setScaleType(ImageView.ScaleType.FIT_XY);
+        border.setImageResource(R.drawable.selected_border);
+        //add border to newly selected index
+        View v = ((FrameLayout)layout.getChildAt(childIndex)).getChildAt(0);
+        ((FrameLayout)layout.getChildAt(childIndex)).addView(border);
+        playerName = (String)v.getTag(R.id.cardOwner);
+        pickedCard = (Card) v.getTag(R.id.card);
+
+    }
+
     private void checkToEnablePosButton(){
-        if(DialogInfo.getInstance().getMyName().equals("market")){
-            HasCards buyer = DialogInfo.getInstance().getPlayers()[0];
+        if(info.getMyName().equals("market")){
+            HasCards buyer = info.getPlayers()[0];
             if(pickedCard.getCost() > buyer.getMoney()) {
                 game.makeToast("too expensive");
                 ((AlertDialog)getDialog()).getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(false);
@@ -580,10 +600,13 @@ public class PickDialogFrag extends DialogFragment {
     }
 
 
-
+    /* This has been acting the way I want through some light testing,
+     * but if I have problems, I'll have to split it up: Deactivate the dialog,
+     * do my Activity callbacks, then commit the remove transaction
+     */
     private void destroyFragment(){
-        DialogInfo.getInstance().deactivateDialog();
-        game.getSupportFragmentManager().beginTransaction().remove(PickDialogFrag.this).commitAllowingStateLoss();
+        info.deactivateDialog();
+        game.getSupportFragmentManager().beginTransaction().remove(PickDialogFrag.this).commitNow();
     }
 
 
@@ -604,7 +627,7 @@ public class PickDialogFrag extends DialogFragment {
     }
     @Override
     public void onDismiss (DialogInterface dialog){
-        DialogInfo.getInstance().setShowing(false);
+        info.setShowing(false);
         super.onDismiss(dialog);
     }
     @Override
@@ -616,4 +639,3 @@ public class PickDialogFrag extends DialogFragment {
 
     //Removed the interface. This and my Activity are in same package, so there's really no need...
 }
-

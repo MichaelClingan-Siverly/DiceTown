@@ -30,6 +30,7 @@ class DialogInfo {
 
     //used while picking landmarks or market cards
     private CardInterface[] cards;
+    private int indexOfSelection;
 
 
     private static final DialogInfo ourInstance = new DialogInfo();
@@ -67,6 +68,14 @@ class DialogInfo {
     }
     void deactivateDialog(){
         activeDialog = false;
+        title = null;
+        message = null;
+        code = -1;
+        myName = null;
+        players = null;
+        forceChoice = false;
+        cards = null;
+        indexOfSelection = -1;
     }
     boolean checkIfDialogActive(){
         return activeDialog;
@@ -111,5 +120,12 @@ class DialogInfo {
 
     void setCards(CardInterface[] cards) {
         this.cards = cards;
+    }
+
+    int getIndexOfSelection() {
+        return indexOfSelection;
+    }
+    void setIndexOfSelection(int index){
+        indexOfSelection = index;
     }
 }

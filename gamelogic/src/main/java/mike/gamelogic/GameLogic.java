@@ -35,6 +35,8 @@ import mike.cards.TvStation;
 
 /**
  * Created by mike on 7/31/2017.
+ * I can put most of this on a worker thread, but it doesn't seem necessary,
+ * since I'm not really doing any time-consuming, intense work.
  */
 
 public class GameLogic extends HandlesLogic {
@@ -327,15 +329,14 @@ public class GameLogic extends HandlesLogic {
 
     private int[] getRestaurantMoneyOwed(){
         int[] moneyOwed = new int[players.length];
-        //for each player
-        for(int i = 0; i < players.length; i++){
+        moneyOwed[activePlayer] = 0;
+        //for each player, starting with the next player (changed the expressions so first player won't get unfair advantage)
+        for(int i = (activePlayer+1)%players.length ; i != activePlayer; i = (i+1)%players.length){
             moneyOwed[i] = 0;
-            if(activePlayer != i) {
-                //visit all their Establishments
-                ActivationVisitor visitor = new ActivationVisitor(originalRoll, players, activePlayer, i, ActivationVisitor.ACTIVATE_RESTAURANTS, 0);
-                for(int j = 0; j < players[i].getCity().length; j++){
-                    moneyOwed[i] += visitor.visit(players[i].getCity()[j]);
-                }
+            //visit all their Establishments
+            ActivationVisitor visitor = new ActivationVisitor(originalRoll, players, activePlayer, i, ActivationVisitor.ACTIVATE_RESTAURANTS, 0);
+            for(int j = 0; j < players[i].getCity().length; j++){
+                moneyOwed[i] += visitor.visit(players[i].getCity()[j]);
             }
         }
         return moneyOwed;
@@ -792,8 +793,10 @@ public class GameLogic extends HandlesLogic {
             if(activePlayer == townIndexBeingShown) {
                 Player p = players[activePlayer];
                 int index = p.getCitySet().indexOf(new TechStartup());
-                if(index >= 0)
-                    ((TechStartup)p.getCitySet().valueAt(index)).addInvestment();
+                if(index >= 0) {
+                    ((TechStartup) p.getCitySet().valueAt(index)).addInvestment();
+                    p.loseMoney(1);
+                }
                 displayTown(activePlayer);
             }
         }
@@ -1155,6 +1158,7 @@ public class GameLogic extends HandlesLogic {
                     if (map.value.equals("y") && players[activePlayer].getCitySet().contains(new TechStartup())) {
                         int index = players[activePlayer].getCitySet().indexOf(new TechStartup());
                         ((TechStartup) players[activePlayer].getCitySet().valueAt(index)).addInvestment();
+                        players[activePlayer].loseMoney(1);
                         if (activePlayer == townIndexBeingShown)
                             displayTown(activePlayer);
                     }

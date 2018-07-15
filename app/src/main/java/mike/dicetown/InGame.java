@@ -32,7 +32,6 @@ import android.widget.Toast;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 import mike.cards.Card;
 import mike.cards.Deck;
@@ -57,7 +56,7 @@ public class InGame extends AppCompatActivity implements UI {
     private String lastMidButtonText;
 
     //requires v to have a tag set with the resource id of the card
-    private View.OnClickListener cardClickListener = new View.OnClickListener() {
+    View.OnClickListener cardClickListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             displayCard((int)v.getTag());
@@ -410,9 +409,13 @@ public class InGame extends AppCompatActivity implements UI {
      */
     @Override
     public void displayTown(String townName, int money, Establishment[] cityCards, Landmark[] landmarks, boolean myTown) {
-        Arrays.sort(cityCards);
-        Arrays.sort(landmarks);
+        //Things look the same when I don't sort arrays, so I won't waste the time
+        setTownText(townName, money, myTown);
+        displayLandmarkIcons(landmarks);
+        displayEstablishmentIcons(cityCards);
+    }
 
+    private void setTownText(String townName, int money, boolean myTown){
         ((TextView)findViewById(R.id.townName)).setText(townName);
         changeMoney(money);
 
@@ -425,9 +428,6 @@ public class InGame extends AppCompatActivity implements UI {
             textResource = R.string.backToPick;
 
         ((Button) findViewById(R.id.inGameMiddleButton)).setText(textResource);
-
-        displayLandmarkIcons(landmarks);
-        displayEstablishmentIcons(cityCards);
     }
 
     //all players own one of each landmark, so I don't even check for how many there are
@@ -501,6 +501,7 @@ public class InGame extends AppCompatActivity implements UI {
         return new int[]{width, height};
     }
 
+    //shows an enlarged version of the card as a popup - so it will not be retained through lifecycle events
     private void displayCard(int imageID){
         ImageButton button;
         View rootLayout = findViewById(R.id.activeScreen);
