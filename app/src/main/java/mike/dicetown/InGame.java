@@ -26,7 +26,6 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -49,7 +48,6 @@ public class InGame extends AppCompatActivity implements UI {
     private boolean mIsBound = false;
     private final Messenger mMessenger = new Messenger(new IncomingHandler(InGame.this));
     private HandlesLogic logic;
-    private boolean establishmentsMade;
     //For things which don't need to persist through screen changes. Stored so I can dismiss it
     private PopupWindow popup;
     //used when users close the pick dialog before a choice is made in order to view towns
@@ -98,6 +96,7 @@ public class InGame extends AppCompatActivity implements UI {
             outState.putString("lastText", lastMidButtonText);
             outState.putString("nowText", ((Button)findViewById(R.id.inGameMiddleButton)).getText().toString());
         }
+        doUnbindService();
         super.onSaveInstanceState(outState);
     }
 
@@ -163,6 +162,7 @@ public class InGame extends AppCompatActivity implements UI {
             int myOrder = logic.getPlayerOrder();
             mBoundService.sendData(SocketService.LEAVE_GAME+":"+myOrder, -1, -1);
             doUnbindService();
+            stopService(new Intent(InGame.this, SocketService.class));
             mIsBound = false; //in case this ends up being called again
         }
     }
@@ -197,16 +197,9 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
-    //I need both the service bound and the logic fragment attached to proceed.
-    //Neither part needs to know whether the other is finished or not
-    @Override
-    public void finishAttachingLogic(){
-        if(logic != null && mBoundService != null && establishmentsMade)
-            getExtras();
-    }
-
     //finds this player's player order and fills the array of Players where each index is their playerOrder
-    private void getExtras(){
+    //All of the setup that may require the bound SocketService should be done here (or after)
+    private void finishAttachingLogic(){
         Intent intent = getIntent();
         int i = 0;
         int myPlayerOrder = 0;
@@ -236,28 +229,17 @@ public class InGame extends AppCompatActivity implements UI {
         if (logic == null) {
             // add the fragment
             logic = new GameLogic();
-            manager.beginTransaction().add(logic, GameLogic.TAG_LOGIC_FRAGMENT).commit();
+            //commitNow is nice. I won't need my silly little callback (finishAttachingLogic)
+            manager.beginTransaction().add(logic, GameLogic.TAG_LOGIC_FRAGMENT).commitNow();
         }
     }
 
-    private void initButtons(){
-        establishmentsMade = false;
-        initLandmarkButtons();
-    }
-
-    private void initEstablishmentButtons(){
+    private void initEstablishmentButtons(int landmarkBarWidth){
         GridLayout grid = findViewById(R.id.establishmentGrid);
         int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
-        int screenHeight = Resources.getSystem().getDisplayMetrics().heightPixels;
-        ScrollView sv = findViewById(R.id.townScroll);
-        int scrollWidth = sv.getWidth();
+        int scrollWidth = screenWidth - landmarkBarWidth;
         int width, height;
-        if(screenHeight > screenWidth)
-            width = scrollWidth / grid.getColumnCount();
-        else {
-            int landmarkWidth = findViewById(R.id.landmarkBar).getWidth();
-            width = (screenWidth - landmarkWidth) / grid.getColumnCount();
-        }
+        width = scrollWidth / grid.getColumnCount();
         height = (int)(1.4 * width);
 
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
@@ -269,18 +251,25 @@ public class InGame extends AppCompatActivity implements UI {
             //I don't need to create or store the IDs since I can just getChildAt(int index) to change the buttons
             grid.addView(frame);
         }
-        establishmentsMade = true;
-        finishAttachingLogic();
     }
 
-    private void initLandmarkButtons(){
-        int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
+    private void initButtons(){
+        //initialize the landmark buttons
+        int orientation = getResources().getConfiguration().orientation;
+        DisplayMetrics displayMetrics = Resources.getSystem().getDisplayMetrics();
+        int size = displayMetrics.widthPixels;
+        if(orientation == Configuration.ORIENTATION_LANDSCAPE)
+            size = displayMetrics.heightPixels;
         LinearLayout landmarkLayout = findViewById(R.id.landmarkBar);
-        int size = screenWidth / landmarkLayout.getChildCount();
-        //this was the easiest way to keep a standard height (width should be set by the XML).
+        size = size / landmarkLayout.getChildCount();
+
+        //this was the easiest way to keep a standard dimension for each (other is set in XML)
         // Without it, buttons with foregrounds would have different height than those with none
         ViewGroup.LayoutParams params = landmarkLayout.getLayoutParams();
-        params.height = size;
+        if(orientation == Configuration.ORIENTATION_LANDSCAPE)
+            params.width = size;
+        else
+            params.height = size;
 
         ImageButton button;
         for(int i = 0; i < landmarkLayout.getChildCount(); i++){
@@ -288,13 +277,9 @@ public class InGame extends AppCompatActivity implements UI {
             button.setScaleType(ImageView.ScaleType.FIT_CENTER);
             button.setOnClickListener(cardClickListener);
         }
-        //I want to have the landmarks made so I can find the right size
-        landmarkLayout.post(new Runnable() {
-            @Override
-            public void run() {
-                initEstablishmentButtons();
-            }
-        });
+
+        //why wait for the landmarks to draw to do this when I can just say how wide I'm making them
+        initEstablishmentButtons(size);
     }
 
     public void visitTown(View v){
@@ -619,12 +604,11 @@ public class InGame extends AppCompatActivity implements UI {
         mIsBound = true;
     }
 
-    void doUnbindService() {
+    private void doUnbindService() {
         if (mIsBound) {
             // Detach our existing connection.
             mBoundService.unregisterClient(mMessenger);
             unbindService(mConnection);
-            stopService(new Intent(InGame.this, SocketService.class));
             mIsBound = false;
         }
     }

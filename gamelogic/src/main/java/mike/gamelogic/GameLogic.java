@@ -93,12 +93,6 @@ public class GameLogic extends HandlesLogic {
     }
 
     @Override
-    public void onActivityCreated(Bundle savedInstanceState){
-        super.onActivityCreated(savedInstanceState);
-        ui.finishAttachingLogic();
-    }
-
-    @Override
     public void onDetach (){
         super.onDetach();
         ui = null;

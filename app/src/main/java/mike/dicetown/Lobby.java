@@ -4,7 +4,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.res.Configuration;
 import android.graphics.Color;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -48,7 +47,6 @@ public class Lobby extends AppCompatActivity{
 
     private boolean host;
     private boolean moveToGame = false;
-    private boolean orientationChanged;
     private String hostIP = null;
     private ArrayList<PlayerReadyContainer> allPlayers;
 
@@ -93,6 +91,8 @@ public class Lobby extends AppCompatActivity{
             intent.putExtra("p"+i, allPlayers.get(i).townName);
         }
         startActivity(intent);
+        if(mBoundService != null)
+            mBoundService.stopAcceptingConnections();
         doUnbindService();
         finish();
     }
@@ -103,7 +103,7 @@ public class Lobby extends AppCompatActivity{
             container.ready = !container.ready;
             if(container.ready) {
                 container.readyIcon.setImageResource(R.drawable.checkmark);
-                Button b = (Button)findViewById(R.id.lobbyButton);
+                Button b = findViewById(R.id.lobbyButton);
                 /* originally disabled the start button and would re-enable it here, but it
                    wouldnt work even though isClickable was true. so instead I let it stay
                    clickable and do another check when its pressed */
@@ -115,7 +115,7 @@ public class Lobby extends AppCompatActivity{
             }
             else {
                 container.readyIcon.setImageResource(R.drawable.unready);
-                Button b = (Button)findViewById(R.id.lobbyButton);
+                Button b = findViewById(R.id.lobbyButton);
                 if(!checkIfAllReady() && host)
                     b.setText("");
                 //only change a player's button's function if they're the one who changed readiness
@@ -152,7 +152,7 @@ public class Lobby extends AppCompatActivity{
         name.setTextColor(Color.BLACK);
         //I store the text height because I want the icons to be as tall (and wide) as the corresponding text
         name.measure(0,0);
-        LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
+        LinearLayout layout = findViewById(R.id.lobbyNameLayout);
         layout.addView(name, playerOrder);
         return name.getMeasuredHeight();
     }
@@ -161,7 +161,7 @@ public class Lobby extends AppCompatActivity{
         ImageView image = allPlayers.get(playerOrder).readyIcon;
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(desiredIconSize, desiredIconSize);
         image.setLayoutParams(params);
-        LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyIconLayout);
+        LinearLayout layout = findViewById(R.id.lobbyIconLayout);
         layout.addView(image, playerOrder);
 
         //the host is always ready from the momeny they join
@@ -181,12 +181,12 @@ public class Lobby extends AppCompatActivity{
         //change my playerOrder if its greater than the order of the player who left
         if(myPlayerOrder > playerOrder)
             myPlayerOrder--;
-        LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
+        LinearLayout layout = findViewById(R.id.lobbyNameLayout);
         if(playerOrder < layout.getChildCount())
             layout.removeViewAt(playerOrder);
 
         if(host){
-            Button b = (Button)findViewById(R.id.lobbyButton);
+            Button b = findViewById(R.id.lobbyButton);
             if(checkIfAllReady())
                 b.setText(R.string.lobbyStartGame);
             else
@@ -210,7 +210,7 @@ public class Lobby extends AppCompatActivity{
     //only called if the user is a game host
     private void displayHostIP(){
         hostIP = getLocalIpAddress();
-        TextView textView = (TextView) findViewById(R.id.ipAddress);
+        TextView textView = findViewById(R.id.ipAddress);
 
         String ipAddress = "IP address: " + hostIP;
         textView.append(ipAddress);
@@ -220,20 +220,26 @@ public class Lobby extends AppCompatActivity{
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_lobby_layout);
-        orientationChanged = false;
         getExtras();
+        boolean serviceStarted = false;
+        if(savedInstanceState != null)
+            serviceStarted = savedInstanceState.getBoolean("bound", false);
         //don't bother starting the service if there is no host IP
         if(!hostIP.equals("error getting address"))
-            startSocketService();
-        //TODO maybe boot a host from their lobby if I can't get their address
+            startSocketService(serviceStarted);
+        else{
+            //I decided to boot the host if they can't get the address, not doing so only confused people
+            makeToast(hostIP);
+            onBackPressed();
+        }
     }
 
-    private void startSocketService(){
+    private void startSocketService(boolean serviceStarted){
         Intent intent = new Intent(Lobby.this, SocketService.class);
         intent.putExtra(SocketService.INTENT_HOST_BOOLEAN, host);
         intent.putExtra(SocketService.INTENT_HOST_IP_STRING, hostIP);
         //binding starts the service, and I'd rather bind since I want to communicate with it
-        doBindService(intent);
+        doBindService(intent, serviceStarted);
     }
 
     @Override
@@ -261,9 +267,10 @@ public class Lobby extends AppCompatActivity{
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig){
-        super.onConfigurationChanged(newConfig);
-        orientationChanged = true;
+    protected void onSaveInstanceState (Bundle outState){
+        outState.putBoolean("bound", mIsBound);
+        doUnbindService();
+        super.onSaveInstanceState(outState);
     }
 
     private void stopService(){
@@ -271,7 +278,6 @@ public class Lobby extends AppCompatActivity{
             mBoundService.sendData(SocketService.LEAVE_GAME+":"+myPlayerOrder, -1, -1);
             stopService(new Intent(Lobby.this, SocketService.class));
             doUnbindService();
-            mIsBound = false; //in case this ends up being called again
         }
     }
 
@@ -279,21 +285,22 @@ public class Lobby extends AppCompatActivity{
     // gets the ip address of your phone's network
     private String getLocalIpAddress() {
         WifiManager manager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        int ipAddressInt = manager.getConnectionInfo().getIpAddress();
-        if (ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN)) {
-            ipAddressInt = Integer.reverseBytes(ipAddressInt);
-        }
-        byte[] ipByteArray = BigInteger.valueOf(ipAddressInt).toByteArray();
+        if(manager != null) {
+            int ipAddressInt = manager.getConnectionInfo().getIpAddress();
+            if (ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN)) {
+                ipAddressInt = Integer.reverseBytes(ipAddressInt);
+            }
+            byte[] ipByteArray = BigInteger.valueOf(ipAddressInt).toByteArray();
 
-        try{
-            InetAddress inet = InetAddress.getByAddress(ipByteArray);
-            int cutOff = inet.toString().lastIndexOf('/');
-            return inet.toString().substring(cutOff+1);
-        } catch (UnknownHostException e) {
-            //It'd be weird to get this exception, since I'm just working with what the system gives me
-            e.printStackTrace();
+            try {
+                InetAddress inet = InetAddress.getByAddress(ipByteArray);
+                int cutOff = inet.toString().lastIndexOf('/');
+                return inet.toString().substring(cutOff + 1);
+            } catch (UnknownHostException e) {
+                //It'd be weird to get this exception, since I'm just working with what the system gives me
+                e.printStackTrace();
+            }
         }
-
         return "error getting address";
     }
 
@@ -332,14 +339,14 @@ public class Lobby extends AppCompatActivity{
     };
 
     //I chose to have this get an intent parameter so I may pass info to the service when creating it
-    void doBindService(Intent intent) {
+    void doBindService(Intent intent, boolean serviceStarted) {
         Intent mIntent;
         if(intent == null)
             mIntent = new Intent(Lobby.this, SocketService.class);
         else
             mIntent = intent;
         //I start the service first, otherwise the service is destroyed when unbound, which I don't want to do
-        if(!orientationChanged)
+        if(!serviceStarted)
             startService(mIntent);
         // Establish a connection with the service.  We use an explicit
         // class name because we want a specific service implementation that
@@ -352,7 +359,6 @@ public class Lobby extends AppCompatActivity{
 
     void doUnbindService() {
         if (mIsBound) {
-            mBoundService.stopAcceptingConnections();
             // Detach our existing connection.
             mBoundService.unregisterClient(mMessenger);
             unbindService(mConnection);
@@ -413,7 +419,7 @@ public class Lobby extends AppCompatActivity{
             else if(mapping.keyWord.equals(CHANGE_NAME)){
                 allPlayers.get(myPlayerOrder).townName = mapping.value;
                 myTownName = mapping.value;
-                LinearLayout layout = (LinearLayout)findViewById(R.id.lobbyNameLayout);
+                LinearLayout layout = findViewById(R.id.lobbyNameLayout);
                 TextView tv = (TextView)layout.getChildAt(myPlayerOrder);
                 tv.setText(myTownName);
                 makeToast("Name changed to "+myTownName);

@@ -1,5 +1,6 @@
 package mike.dicetown;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -12,14 +13,12 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import mike.socketthreading.SocketService;
 
 public class MainMenu extends AppCompatActivity {
     private String townName = "";
@@ -60,6 +59,12 @@ public class MainMenu extends AppCompatActivity {
         }
     }
 
+    @Override
+    public void onBackPressed(){
+        Application app = getApplication();
+        finishAffinity();
+    }
+
     public void joinListener(View v){
         getTownName();
 
@@ -70,7 +75,11 @@ public class MainMenu extends AppCompatActivity {
                     //make sure a userName is entered. If so, attempt to connect to the host
                     if (which == DialogInterface.BUTTON_POSITIVE) {
                         hostIP = ipEdit.getText().toString();
-                        new CheckAddressTask(hostIP).execute(null, null);
+                        //don't even try checking if user doesn't enter anything
+                        if(hostIP.equals(""))
+                            makeToast("That is not an address");
+                        else
+                            new CheckAddressTask(hostIP).execute(null, null);
                     }
                     //if its negative, it closes dialog and does no nothing more
                 }

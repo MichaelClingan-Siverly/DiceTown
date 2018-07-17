@@ -5,7 +5,6 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
-import android.util.Log;
 import android.util.SparseArray;
 
 import java.io.BufferedReader;
@@ -47,7 +46,10 @@ class GameClientConnection {
         sockets = new SparseArray<>();
     }
 
-    //I don't really use this, instead I let the thread (and sockets) die when the service is killed
+    /* Well, I didn't think I needed to do this before.
+     * Seems like I was naive thinking they would die when the service was killed.
+     * Android Profiler made it VERY clear that this was not the case...
+     */
     void quitThread(){
         synchronized (lock) {
             myThread.quit();

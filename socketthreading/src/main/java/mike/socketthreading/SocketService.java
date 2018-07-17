@@ -8,7 +8,6 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
-import android.util.Log;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -70,6 +69,7 @@ public class SocketService extends Service implements ReceivesNewConnections{
     public void stopAcceptingConnections(){
         if(serverListenerTask != null){
             serverListenerTask.cancel(true);
+            serverListenerTask = null;
         }
     }
 
@@ -111,6 +111,10 @@ public class SocketService extends Service implements ReceivesNewConnections{
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
+    }
+    @Override
+    public boolean onUnbind(Intent intent){
+        return super.onUnbind(intent);
     }
 
     /**
@@ -176,7 +180,6 @@ public class SocketService extends Service implements ReceivesNewConnections{
                             Message message = Message.obtain(msg);
                             service.client.send(message);
                         } catch (RemoteException e) {
-                            Log.d("remoteException", e.getLocalizedMessage());
                             e.printStackTrace();
                         }
                         break;
@@ -196,8 +199,6 @@ public class SocketService extends Service implements ReceivesNewConnections{
         @Override
         public void run() {
             try {
-                if(android.os.Debug.isDebuggerConnected())
-                    android.os.Debug.waitForDebugger();
                 InetAddress inetAddr = InetAddress.getByName(address);
                 Socket s = new Socket(inetAddr, AcceptConnections.SERVERPORT);
                 connections.addSocket(s);
@@ -212,7 +213,6 @@ public class SocketService extends Service implements ReceivesNewConnections{
                 }
             }
             catch (IOException e) {
-                Log.d("Exception", e.getLocalizedMessage());
                 e.printStackTrace();
             }
         }
@@ -225,9 +225,18 @@ public class SocketService extends Service implements ReceivesNewConnections{
             client.send(m);
         }
         catch(RemoteException re){
+            re.printStackTrace();
             //I don't want to let the game crash for a user, but not sure how I should be handling
             //some of these exceptions I don't expect to be getting
-            Log.d("RemoteException", "shouldn't be getting these at this point");
         }
+    }
+
+    @Override
+    public void onDestroy(){
+        stopAcceptingConnections();
+        connections.quitThread();
+        connections = null;
+        client = null;
+        super.onDestroy();
     }
 }

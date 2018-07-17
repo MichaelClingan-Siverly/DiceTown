@@ -89,10 +89,4 @@ public interface UI {
      * @param winnerName String representing the winner's name, or null if this client is the winner
      */
     void endGame(String winnerName);
-
-    /**
-     * Let the UI know that the logic is finished being created and attached
-     * so that it may continue with its creation process
-     */
-    void finishAttachingLogic();
 }
