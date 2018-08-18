@@ -59,6 +59,8 @@ public interface UI {
 
     void pickPlayer(HasCards[] players, int myIndex, String title);
 
+    void pickMoveRenovated(String cardName, String message);
+
     /**
      * sends a message across the socket(s)
      */

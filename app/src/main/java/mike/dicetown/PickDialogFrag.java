@@ -5,11 +5,13 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v7.app.AppCompatActivity;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -55,7 +57,10 @@ public class PickDialogFrag extends DialogFragment {
     public static final int PICK_ROLL_TWO = 7;
     public static final int PICK_ROLL_ONE = 8;
     public static final int PICK_ROLL_ANY = 9;
-    public static final int NO_PICK_GAME_WON = 10;
+    public static final int PICK_MOVE_RENOVATED = 10;
+    public static final int NO_PICK_GAME_WON = 11;
+    public static final int SHOW_ROLL = 12;
+
     public static final String tag = "dialog";
 
 
@@ -67,6 +72,9 @@ public class PickDialogFrag extends DialogFragment {
     private boolean vertical = true;
     private InGame game;
     private DialogInfo info; //set during OnCreateDialog
+    private boolean showingDice = false;
+    //indicates that this is a previous dice roll that wasn't dismissed before the next one started. Disregard the results.
+    private boolean oldDice = false;
 
     int[] metrics;
 
@@ -78,8 +86,8 @@ public class PickDialogFrag extends DialogFragment {
      * @param code code indicating what is shown so it can set the appropriate buttons and listeners
      * @return a new DialogFragment with the
      */
-    public static PickDialogFrag newInstance(String title, String message, int code) {
-        return makeInstance(new Bundle(), title, message, code);
+    public static PickDialogFrag newInstance(String title, String message, int code, final InGame game) {
+        return makeInstance(new Bundle(), title, message, code, game);
     }
 
     /**
@@ -91,14 +99,15 @@ public class PickDialogFrag extends DialogFragment {
      * @param d2 value of second dice
      * @return a new DialogFragment with the
      */
-    public static PickDialogFrag newInstance(String title, String message, int code, int d1, int d2){
+    public static PickDialogFrag newInstance(String title, String message, int code, int d1, int d2, final InGame game){
         Bundle args = new Bundle();
         args.putInt("d1", d1);
         args.putInt("d2", d2);
-        return makeInstance(args, title, message, code);
+        return makeInstance(args, title, message, code, game);
     }
 
-    private static PickDialogFrag makeInstance(Bundle args, String title, String message, int code){
+    private static PickDialogFrag makeInstance(Bundle args, String title, String message, int code, final InGame game){
+        checkForExistingDialog(game);
         PickDialogFrag frag = new PickDialogFrag();
         args.putString("title", title);
         args.putString("message", message);
@@ -116,6 +125,22 @@ public class PickDialogFrag extends DialogFragment {
         info.setTitle(title);
     }
 
+    //better have this as part of the static factory method rather than make everything else do it
+    private static void checkForExistingDialog(AppCompatActivity activity){
+        FragmentManager manager;
+        if(activity != null)
+            manager = activity.getSupportFragmentManager();
+        else
+            return;
+
+        PickDialogFrag frag = (PickDialogFrag) manager.findFragmentByTag(PickDialogFrag.tag);
+        boolean val = frag != null;
+        if(val && frag.isShowingDice()) {
+            frag.setOldDice();
+            frag.dismiss();
+        }
+    }
+
     private void findOrientation(){
         DisplayMetrics displayMetrics = game.getResources().getDisplayMetrics();
 
@@ -124,7 +149,7 @@ public class PickDialogFrag extends DialogFragment {
         int height = displayMetrics.heightPixels;
 
         vertical = width <= height;
-        metrics = game.getLargeCardDimensions(width, height);
+        metrics = Card.getLargeCardDimensions(width, height, displayMetrics);
     }
 
     /*
@@ -134,13 +159,17 @@ public class PickDialogFrag extends DialogFragment {
     @Override
     public AlertDialog onCreateDialog(Bundle savedInstanceState) {
         findOrientation();
-        setCancelable(false);
         info = DialogInfo.getInstance();
+        setCancelable(false);
         AlertDialog.Builder builder = prepareBuilder();
-
         info.activateDialog();
-
-        return builder.create();
+        AlertDialog dialog = builder.create();
+        //I don't want the background of the dialog to show up during dice rolls
+        if(info.getCode() == SHOW_ROLL && dialog.getWindow() != null){
+            //setting the resource to 0 caused crashes, and I have no R.color.transparent
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        return dialog;
     }
 
     private AlertDialog.Builder prepareBuilder(){
@@ -164,13 +193,13 @@ public class PickDialogFrag extends DialogFragment {
         else
             builder.setTitle("something went wrong");
 
-        setDialogContent(builder, code);
+        setDialogContent(builder);
         return builder;
     }
 
-    private void setDialogContent(AlertDialog.Builder builder, int code){
+    private void setDialogContent(AlertDialog.Builder builder){
         //Set appropriate buttons and layouts, if any
-        switch(code){
+        switch(info.getCode()){
             case PICK_PLAYER: //expects that caller has set players and myIndex in the DialogInfo
                 //positive, neutral
                 setPickPlayerOrCardListeners(builder);
@@ -196,15 +225,17 @@ public class PickDialogFrag extends DialogFragment {
                 break;
             case PICK_TECH:
                 //positive, negative
-                setTechChoiceListeners(builder);
-                break;
-            case PICK_ADD_TWO:
-                //positive, negative
-                setAddTwoListener(builder);
-                break;
+//                setTechChoiceListeners(builder);
             case PICK_REROLL: //expects that caller has set d1 and d2 in the DialogInfo
                 //positive, negative
-                setRerollListener(builder);
+//                setRerollListener(builder);
+            case PICK_ADD_TWO:
+                //positive, negative
+//                setAddTwoListener(builder);
+            case PICK_MOVE_RENOVATED:
+                //positive, negative
+                setBooleanListener(builder);
+//                setMovingRenovatedListeners(builder);
                 break;
             case PICK_ROLL_TWO: //tuna boat or re-rolling after two dice is rolled, forces exactly two dice
                 //positive, neutral
@@ -227,10 +258,19 @@ public class PickDialogFrag extends DialogFragment {
                 setNeutralToViewTown(builder);
                 setEndGameButton(builder);
                 break;
+            case SHOW_ROLL:
+                showingDice = true;
+//                setDiceRollButton(builder);
+                Dice.setRollLayout(builder, vertical, game);
+                break;
             default: //only viewing towns
                 //neutral
         }
     }
+
+
+
+
 
     /* Although a number of dialogs don't have an explicit button to dismiss and view towns,
      * I still want users to get the behavior they'd expect from pressing the back button.
@@ -286,40 +326,32 @@ public class PickDialogFrag extends DialogFragment {
     }
 
 
-    private void setAddTwoListener(AlertDialog.Builder builder){
+    private void setBooleanListener(AlertDialog.Builder builder){
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
             @Override
-            public void onClick(DialogInterface dialog, int which) {
+            public void onClick(DialogInterface dialogInterface, int which) {
+                boolean selectedYes = which == DialogInterface.BUTTON_POSITIVE;
+                int code = info.getCode();
                 destroyFragment();
-                game.receiveAddTwoChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
+                switch(code){
+                    case PICK_REROLL:
+                        game.receiveRerollChoice(selectedYes, d1, d2);
+                        break;
+                    case PICK_TECH:
+                        game.receiveTechChoice(selectedYes);
+                        break;
+                    case PICK_MOVE_RENOVATED:
+                        game.receiveMoveRenovated(selectedYes);
+                        break;
+                    case PICK_ADD_TWO:
+                        game.receiveAddTwoChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
+                        break;
+                }
             }
         };
         setPosAndNegButtons(builder, listener);
     }
 
-
-    private void setRerollListener(AlertDialog.Builder builder){
-        DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                destroyFragment();
-                game.receiveRerollChoice(which == DialogInterface.BUTTON_POSITIVE, d1, d2);
-            }
-        };
-        setPosAndNegButtons(builder, listener);
-    }
-
-
-    private void setTechChoiceListeners(AlertDialog.Builder builder){
-        DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                destroyFragment();
-                game.receiveTechChoice(which == DialogInterface.BUTTON_POSITIVE);
-            }
-        };
-        setPosAndNegButtons(builder, listener);
-    }
 
     private void setPosAndNegButtons(AlertDialog.Builder builder, DialogInterface.OnClickListener listener){
         builder.setPositiveButton("yes", listener);
@@ -348,7 +380,7 @@ public class PickDialogFrag extends DialogFragment {
      * AlertDialogs seem like the one case when a null root is appropriate.
      */
     @SuppressLint("InflateParams")
-    private FrameLayout getOuterLayout(){
+    private FrameLayout getPickCardOuterLayout(){
         //both types of ScrollView are subclasses of FrameLayout
         if(vertical)
             return (ScrollView)game.getLayoutInflater().inflate(R.layout.pick_card, null);
@@ -358,7 +390,7 @@ public class PickDialogFrag extends DialogFragment {
 
     //main difference between pickCard and player layouts are that the pickCard doesn't have player names in it
     private void setPickCardLayout(AlertDialog.Builder builder){
-        FrameLayout outerLayout = getOuterLayout();
+        FrameLayout outerLayout = getPickCardOuterLayout();
         LinearLayout layout = (LinearLayout) outerLayout.getChildAt(0);
 
         CardInterface[] cards = info.getCards();
@@ -373,14 +405,14 @@ public class PickDialogFrag extends DialogFragment {
         int prevSelection = info.getIndexOfSelection();
         if(prevSelection >= 0) {
             addSelectionBorder(layout, prevSelection);
-            enablePosButton = true; //TODO nothing really, just marking this line because its how I remember selections
+            enablePosButton = true;
         }
 
         builder.setView(outerLayout);
     }
 
     private void setPlayerLayout(AlertDialog.Builder builder){
-        FrameLayout outerLayout = getOuterLayout();
+        FrameLayout outerLayout = getPickCardOuterLayout();
         LinearLayout layout = (LinearLayout) outerLayout.getChildAt(0);
         View.OnClickListener buttonListener = makePlayerLayoutListener();
 
@@ -435,7 +467,7 @@ public class PickDialogFrag extends DialogFragment {
 
 
     private void setPickPlayersCardLayout(AlertDialog.Builder builder){
-        FrameLayout outerLayout = getOuterLayout();
+        FrameLayout outerLayout = getPickCardOuterLayout();
         LinearLayout layout = (LinearLayout) outerLayout.getChildAt(0);
         HasCards[] cardOwners = info.getPlayers();
 
@@ -504,7 +536,7 @@ public class PickDialogFrag extends DialogFragment {
         button.setLayoutParams(params);
         button.setImageResource(card.getFullImageId());
         button.setBackground(null);
-        button.setScaleType(ImageView.ScaleType.FIT_XY);
+        button.setScaleType(ImageView.ScaleType.FIT_CENTER);
         button.setOnClickListener(cardListener);
         frame.addView(button);
         //num renovated
@@ -593,8 +625,8 @@ public class PickDialogFrag extends DialogFragment {
         return new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                Dice.rollValues(twoDice, game);
                 destroyFragment();
+                Dice.rollValues(twoDice, game);
             }
         };
     }
@@ -607,6 +639,20 @@ public class PickDialogFrag extends DialogFragment {
     private void destroyFragment(){
         info.deactivateDialog();
         game.getSupportFragmentManager().beginTransaction().remove(PickDialogFrag.this).commitNow();
+    }
+
+    boolean isShowingDice(){
+        return showingDice;
+    }
+    /* reuses showingDice because the check in onDismiss does what I want to do here.
+     * this prevents fragment's remove transaction from happening after the
+     * fragment host (the Activity) has been destroyed (saving me from Exceptions)
+     */
+    void destroyingFragmentHost(){
+        showingDice = false;
+    }
+    void setOldDice(){
+        oldDice = true;
     }
 
 
@@ -628,12 +674,15 @@ public class PickDialogFrag extends DialogFragment {
     @Override
     public void onDismiss (DialogInterface dialog){
         info.setShowing(false);
+        if(showingDice && !oldDice)
+                game.finishRoll(d1, d2);
+        //if !showingDice, this would have been called through a call to destroyFragment
         super.onDismiss(dialog);
     }
     @Override
     public void onAttach(Context context){
-        game = (InGame)context;
         super.onAttach(context);
+        game = (InGame)context;
     }
 
 

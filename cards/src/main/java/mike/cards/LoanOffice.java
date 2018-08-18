@@ -15,14 +15,6 @@ public class LoanOffice extends LowEstablishment implements SecondaryIndustry {
     // working copies of (with others, its better to give away the ones under renovation)
     public void removeCopy(){
         if(numCopies > 0){
-            if(numRenovated > 0)
-                numRenovated--;
-            numCopies--;
-        }
-    }
-    @Override
-    public void removeCopyFromOpponent(){
-        if(numCopies > 0){
             if(numRenovated == numCopies)
                 numRenovated--;
             numCopies--;

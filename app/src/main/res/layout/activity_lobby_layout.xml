@@ -54,6 +54,7 @@
         android:background="#007399"
         android:clickable="true"
         android:focusable="true"
+        android:text="@string/lobbyUnReady"
         android:onClick="lobbyButtonListener"/>
 
 </RelativeLayout>

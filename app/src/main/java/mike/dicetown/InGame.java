@@ -15,7 +15,6 @@ import android.os.Messenger;
 import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.util.DisplayMetrics;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -52,6 +51,7 @@ public class InGame extends AppCompatActivity implements UI {
     private PopupWindow popup;
     //used when users close the pick dialog before a choice is made in order to view towns
     private String lastMidButtonText;
+    private boolean attachLogic = true;
 
     //requires v to have a tag set with the resource id of the card
     View.OnClickListener cardClickListener = new View.OnClickListener() {
@@ -78,6 +78,7 @@ public class InGame extends AppCompatActivity implements UI {
         }
 
         if(savedInstanceState != null) {
+            attachLogic = false;
             Button b = findViewById(R.id.inGameMiddleButton);
             lastMidButtonText = savedInstanceState.getString("lastText");
             b.setText(savedInstanceState.getString("nowText"));
@@ -96,22 +97,28 @@ public class InGame extends AppCompatActivity implements UI {
             outState.putString("lastText", lastMidButtonText);
             outState.putString("nowText", ((Button)findViewById(R.id.inGameMiddleButton)).getText().toString());
         }
-        doUnbindService();
         super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    public void onRestart(){
+        super.onRestart();
+        if(mBoundService != null)
+            mBoundService.resumeMessages();
     }
 
     //work is done here since onStop is not guaranteed to be called
     @Override
     public void onPause(){
-        super.onPause();
-        if(popup != null){
-            popup.dismiss();
-            popup.setContentView(null);
-            popup = null;
-        }
+        //moved the popup check into the if-statement because it
+        //should still display when the user goes back to the app
         if(isFinishing()){
+            killPopup();
             stopService();
         }
+        else
+            mBoundService.pauseMessages();
+        super.onPause();
     }
 
     /*
@@ -121,29 +128,48 @@ public class InGame extends AppCompatActivity implements UI {
      */
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         if(isFinishing()) {
             stopService();
         }
+        PickDialogFrag frag = (PickDialogFrag) getSupportFragmentManager().findFragmentByTag(PickDialogFrag.tag);
+        if(frag != null)
+            frag.destroyingFragmentHost();
+        super.onDestroy();
     }
 
     @Override
     public void onBackPressed(){
-        Context context = this;
-        Intent intent = new Intent(context, MainMenu.class);
-        startActivity(intent);
-        finish();
-        //onPause will end up being called and stop the service
+        if(popup != null){
+            killPopup();
+        }
+        else
+            goToMainMenu();
     }
 
     @Override
     public void leaveGame(int playerOrder) {
         //I'm the one leaving - this should only happen if the host leaving forces me to leave
         if(playerOrder == logic.getPlayerOrder())
-            onBackPressed();
+            goToMainMenu();
         else{
             mBoundService.removePlayer(playerOrder);
         }
+    }
+
+    private void killPopup(){
+        if(popup != null) {
+            popup.dismiss();
+            popup.setContentView(null);
+            popup = null;
+        }
+    }
+
+    private void goToMainMenu(){
+        Context context = this;
+        Intent intent = new Intent(context, MainMenu.class);
+        stopService(); //I know this is called in onDestroy, but that's not guaranteed to be called
+        startActivity(intent);
+        finish();
     }
 
     @Override
@@ -153,7 +179,7 @@ public class InGame extends AppCompatActivity implements UI {
             message = getString(R.string.youWin);
         else
             message = getString(R.string.otherWin, winnerName);
-        PickDialogFrag frag = PickDialogFrag.newInstance(getString(R.string.gameOver), message, PickDialogFrag.NO_PICK_GAME_WON);
+        PickDialogFrag frag = PickDialogFrag.newInstance(getString(R.string.gameOver), message, PickDialogFrag.NO_PICK_GAME_WON, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
@@ -172,6 +198,7 @@ public class InGame extends AppCompatActivity implements UI {
         logic.middleButtonPressed();
     }
 
+    //this one is where the user must interact and all that.
     @Override
     public void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat, int rerollDice){
         Dice.getDiceRoll(trainStationOwned, forTunaBoat, rerollDice, this);
@@ -197,30 +224,6 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
-    //finds this player's player order and fills the array of Players where each index is their playerOrder
-    //All of the setup that may require the bound SocketService should be done here (or after)
-    private void finishAttachingLogic(){
-        Intent intent = getIntent();
-        int i = 0;
-        int myPlayerOrder = 0;
-        String myName = intent.getStringExtra("myName");
-        ArrayList<Player> mPlayers = new ArrayList<>();
-        //loop starts at player 0 (the host) and iterates for each player order
-        while(intent.hasExtra("p"+i)){
-            String name = intent.getStringExtra("p"+i);
-            //there BETTER be a playerOrder for this player if they got this far...
-            if(myName.equals(name))
-                myPlayerOrder = i;
-            mPlayers.add(new Player(name));
-            i++;
-        }
-
-        Player[] players = mPlayers.toArray(new Player[mPlayers.size()]);
-
-        logic.initLogic(players, myPlayerOrder);
-        logic.setLeaveGameCode(SocketService.LEAVE_GAME);
-    }
-
     private void loadLogicFragment(){
         //finds the fragments
         FragmentManager manager = getSupportFragmentManager();
@@ -229,17 +232,20 @@ public class InGame extends AppCompatActivity implements UI {
         if (logic == null) {
             // add the fragment
             logic = new GameLogic();
-            //commitNow is nice. I won't need my silly little callback (finishAttachingLogic)
             manager.beginTransaction().add(logic, GameLogic.TAG_LOGIC_FRAGMENT).commitNow();
         }
     }
 
-    private void initEstablishmentButtons(int landmarkBarWidth){
+    private void initEstablishmentButtons(int landmarkImageWidth, int orientation){
         GridLayout grid = findViewById(R.id.establishmentGrid);
-        int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
-        int scrollWidth = screenWidth - landmarkBarWidth;
         int width, height;
-        width = scrollWidth / grid.getColumnCount();
+        int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
+        if(orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            int scrollWidth = screenWidth - landmarkImageWidth;
+            width = scrollWidth / grid.getColumnCount();
+        }
+        else
+            width = screenWidth / grid.getColumnCount(); //landmarkbar is full width of screen
         height = (int)(1.4 * width);
 
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
@@ -253,16 +259,8 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
-    private void initButtons(){
-        //initialize the landmark buttons
-        int orientation = getResources().getConfiguration().orientation;
-        DisplayMetrics displayMetrics = Resources.getSystem().getDisplayMetrics();
-        int size = displayMetrics.widthPixels;
-        if(orientation == Configuration.ORIENTATION_LANDSCAPE)
-            size = displayMetrics.heightPixels;
+    private void initLandmarkButtons(int size, int orientation){
         LinearLayout landmarkLayout = findViewById(R.id.landmarkBar);
-        size = size / landmarkLayout.getChildCount();
-
         //this was the easiest way to keep a standard dimension for each (other is set in XML)
         // Without it, buttons with foregrounds would have different height than those with none
         ViewGroup.LayoutParams params = landmarkLayout.getLayoutParams();
@@ -274,12 +272,24 @@ public class InGame extends AppCompatActivity implements UI {
         ImageButton button;
         for(int i = 0; i < landmarkLayout.getChildCount(); i++){
             button = (ImageButton)landmarkLayout.getChildAt(i);
-            button.setScaleType(ImageView.ScaleType.FIT_CENTER);
             button.setOnClickListener(cardClickListener);
         }
+    }
+
+    private void initButtons(){
+        //initialize the landmark buttons
+        int orientation = getResources().getConfiguration().orientation;
+        DisplayMetrics displayMetrics = Resources.getSystem().getDisplayMetrics();
+        int size = displayMetrics.widthPixels;
+        if(orientation == Configuration.ORIENTATION_LANDSCAPE)
+            size = displayMetrics.heightPixels;
+        LinearLayout landmarkLayout = findViewById(R.id.landmarkBar);
+        size = size / landmarkLayout.getChildCount();
+
+        initLandmarkButtons(size, orientation);
 
         //why wait for the landmarks to draw to do this when I can just say how wide I'm making them
-        initEstablishmentButtons(size);
+        initEstablishmentButtons(size, orientation);
     }
 
     public void visitTown(View v){
@@ -289,15 +299,16 @@ public class InGame extends AppCompatActivity implements UI {
             logic.goToNextTown();
     }
 
-    void setPopup(PopupWindow p){
-        popup = p;
+
+    @Override
+    public void pickMoveRenovated(String cardName, String message){
+        String title = "Move renovated copy of "+cardName+'?';
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_MOVE_RENOVATED, this);
+        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
-
-    PopupWindow getPopup(){
-        return popup;
+    void receiveMoveRenovated(boolean choice){
+        logic.receiveMoveRenovatedChoice(choice);
     }
-
-
 
     @Override
     public void pickPlayer(HasCards[] players, int myIndex, String title){
@@ -305,7 +316,7 @@ public class InGame extends AppCompatActivity implements UI {
         DialogInfo.getInstance().setMyName(players[myIndex].getName());
 
         String message = "(name : money)";
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_PLAYER);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_PLAYER, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void selectPlayer(String playerName){
@@ -319,7 +330,7 @@ public class InGame extends AppCompatActivity implements UI {
         DialogInfo.getInstance().setMyName(myName);
 
         String title = "Select A Card for "+ titleMessage;
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_PLAYERS_CARD);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_PLAYERS_CARD, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void selectCard(Card pickedCard, String owner){
@@ -334,7 +345,7 @@ public class InGame extends AppCompatActivity implements UI {
 
         final String title = "Buy A Card    (money: "+me.getMoney()+')';
 
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_MARKETS_CARD);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_MARKETS_CARD, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
@@ -344,17 +355,17 @@ public class InGame extends AppCompatActivity implements UI {
         DialogInfo.getInstance().setMyName(myName);
         String title = "Choose landmark to demolish";
 
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_LANDMARK);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_LANDMARK, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
 
     @Override
     public void getTechChoice(int currentInvestment) {
-        String title = "Invest $1 into your Tech Startup?";
-        String message = "You currently have $"+ currentInvestment+ " invested";
+        String title = "Invest \u26051 into your Tech Startup?";
+        String message = "You currently have \u2605"+ currentInvestment+ " invested";
 
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_TECH);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_TECH, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveTechChoice(boolean invest){
@@ -364,7 +375,8 @@ public class InGame extends AppCompatActivity implements UI {
     @Override
     public void askIfAddTwo(final int d1, final int d2) {
         String title = "Add 2 to your roll?";
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_ADD_TWO, d1, d2);
+        String message = "original roll total: "+(d1+d2);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_ADD_TWO, d1, d2, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveAddTwoChoice(boolean addTwo, int d1, int d2){
@@ -380,7 +392,7 @@ public class InGame extends AppCompatActivity implements UI {
         else
             message = "original roll: "+d1;
 
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_REROLL, d1, d2);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_REROLL, d1, d2, this);
         frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveRerollChoice(boolean reroll, int d1, int d2){
@@ -404,10 +416,11 @@ public class InGame extends AppCompatActivity implements UI {
         ((TextView)findViewById(R.id.townName)).setText(townName);
         changeMoney(money);
 
+        DialogInfo info = DialogInfo.getInstance();
         int textResource;
         if(!myTown)
             textResource = R.string.backToOwnCity;
-        else if(!DialogInfo.getInstance().checkIfDialogActive())
+        else if(!info.checkIfDialogActive() || info.getCode() == PickDialogFrag.SHOW_ROLL)
             textResource = R.string.toMarketplace;
         else
             textResource = R.string.backToPick;
@@ -420,7 +433,6 @@ public class InGame extends AppCompatActivity implements UI {
         LinearLayout landmarkLayout = findViewById(R.id.landmarkBar);
         for(int i = 0; i < landmarks.length; i++){
             ImageButton button = (ImageButton)landmarkLayout.getChildAt(i);
-            button.setBackgroundResource(landmarks[i].getGridImageId());
             if(landmarks[i].getNumAvailable() < 1)
                 button.setImageResource(R.drawable.under_construction);
             else
@@ -456,35 +468,7 @@ public class InGame extends AppCompatActivity implements UI {
         }
     }
 
-    /**
-     *
-     * @param layoutWidth width of the layout this card will be sized in comparison to
-     * @param layoutHeight height of the layout this card will be sized in comparison to
-     * @return int array holding card dimensions in pixels,
-     * with index 0 having the width, and 1 having the height
-     */
-    int[] getLargeCardDimensions(int layoutWidth, int layoutHeight){
-        DisplayMetrics d = getResources().getDisplayMetrics();
-        //max height and width are 225 and 160 (respectively) dp, converted to px
-        int maxHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 225, d);
-        int maxWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 160, d);
-        int height = layoutHeight;
-        int width = layoutWidth;
 
-        //I check both height and width since I want to make sure the whole image fits in the screen
-        int ratio = (int) (1.4 * width);
-        if (height < ratio)
-            width = (int) (.714 * height);
-        else if (height > ratio)
-            height = ratio;
-
-        //If attempted dims is larger than max for one dim, both will be too large. So only check one
-        if (height > maxHeight) {
-            height = maxHeight;
-            width = maxWidth;
-        }
-        return new int[]{width, height};
-    }
 
     //shows an enlarged version of the card as a popup - so it will not be retained through lifecycle events
     private void displayCard(int imageID){
@@ -499,7 +483,7 @@ public class InGame extends AppCompatActivity implements UI {
             popup.setWidth(width);
             popup.setBackgroundDrawable(getDrawable(R.drawable.background));
 
-            int[] dims = getLargeCardDimensions(width, height);
+            int[] dims = Card.getLargeCardDimensions(width, height, getResources().getDisplayMetrics());
 
             int padWidth = (popup.getWidth() - dims[0]) / 2;
             int padHeight = (popup.getHeight() - dims[1]) / 2;
@@ -516,10 +500,7 @@ public class InGame extends AppCompatActivity implements UI {
             button.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    if(popup != null) {
-                        popup.dismiss();
-                    }
-                    popup = null;
+                    killPopup();
                 }
             });
             popup.setContentView(button);
@@ -571,7 +552,7 @@ public class InGame extends AppCompatActivity implements UI {
             String message = DialogInfo.getInstance().getMessage();
             int code = DialogInfo.getInstance().getCode();
             // add the fragment
-            frag = PickDialogFrag.newInstance(title, message, code);
+            frag = PickDialogFrag.newInstance(title, message, code, this);
             frag.show(manager, PickDialogFrag.tag);
         }
     }
@@ -580,14 +561,45 @@ public class InGame extends AppCompatActivity implements UI {
         public void onServiceConnected(ComponentName className, IBinder service) {
             mBoundService = ((SocketService.LocalBinder)service).getService();
             mBoundService.registerClient(mMessenger);
-            //I need both the service bound and the logic fragment attached to proceed. both will try
-            finishAttachingLogic();
+
+            if(attachLogic)
+                StartLogic();
+            else{ //activity recreated (e.g. screen rotation). Pausing and Resuming this activity won't cause this to happen again
+                //I can't tell logic to display the current town, but doing this will give the same result
+                logic.goToNextTown();
+                logic.goToPrevTown();
+            }
+            mBoundService.resumeMessages();
         }
 
         public void onServiceDisconnected(ComponentName className) {
             mBoundService = null;
         }
     };
+
+    //finds this player's player order and fills the array of Players where each index is their playerOrder
+    //All of the setup that may require the bound SocketService should be done here (or after)
+    private void StartLogic(){
+        Intent intent = getIntent();
+        int i = 0;
+        int myPlayerOrder = 0;
+        String myName = intent.getStringExtra("myName");
+        ArrayList<Player> mPlayers = new ArrayList<>();
+        //loop starts at player 0 (the host) and iterates for each player order
+        while(intent.hasExtra("p"+i)){
+            String name = intent.getStringExtra("p"+i);
+            //there BETTER be a playerOrder for this player if they got this far...
+            if(myName.equals(name))
+                myPlayerOrder = i;
+            mPlayers.add(new Player(name));
+            i++;
+        }
+
+        Player[] players = mPlayers.toArray(new Player[mPlayers.size()]);
+
+        logic.initLogic(players, myPlayerOrder);
+        logic.setLeaveGameCode(SocketService.LEAVE_GAME);
+    }
 
     //I chose to have this get an intent parameter so I may pass info to the service when creating it
     void doBindService(Intent intent) {

@@ -1,10 +1,7 @@
 package mike.cards;
 
-import android.content.Context;
-import android.view.ViewGroup;
+import android.util.DisplayMetrics;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
-import android.widget.TextView;
 
 /**
  * Created by mike on 7/30/2017.

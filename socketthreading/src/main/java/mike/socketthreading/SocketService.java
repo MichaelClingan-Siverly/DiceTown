@@ -14,6 +14,7 @@ import java.lang.ref.WeakReference;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.LinkedList;
 
 public class SocketService extends Service implements ReceivesNewConnections{
     private Messenger client;
@@ -21,6 +22,7 @@ public class SocketService extends Service implements ReceivesNewConnections{
     private GameClientConnection connections = null;
     private boolean previouslyStarted = false;
     private boolean cantConnectFlag = false;
+    private IncomingHandler handler = null;
 
     // This is the object that receives interactions from clients.  See
     // RemoteService for a more complete example.
@@ -71,6 +73,24 @@ public class SocketService extends Service implements ReceivesNewConnections{
             serverListenerTask.cancel(true);
             serverListenerTask = null;
         }
+    }
+
+    /**
+     * Tell the service that while an Activity should still be bound, it will be unable to
+     * process Messages (such as when an Activity is paused)
+     */
+    public synchronized void pauseMessages(){
+        if(handler != null)
+            handler.pause();
+    }
+    /**
+     * Tell the service that an Activity is able to process messages again.
+     * All messages received while paused should be passed on in FIFO order, before any new ones
+     * are processed. If pauseMessages was not called previously, this does nothing.
+     */
+    public synchronized void resumeMessages(){
+        if(handler != null)
+            handler.resume();
     }
 
     /**
@@ -128,7 +148,8 @@ public class SocketService extends Service implements ReceivesNewConnections{
 
     private void checkIntent(Intent intent){
         boolean host = intent.getBooleanExtra(INTENT_HOST_BOOLEAN, false);
-        connections = new GameClientConnection(new Messenger(new IncomingHandler(SocketService.this)), host);
+        handler = new IncomingHandler(SocketService.this);
+        connections = new GameClientConnection(new Messenger(handler), host);
         String ip = intent.getStringExtra(INTENT_HOST_IP_STRING);
         //if host, begin listening for connections
         if(host) {
@@ -148,7 +169,16 @@ public class SocketService extends Service implements ReceivesNewConnections{
     @Override
     public void receiveConnection(Socket s) {
         int playerOrder = connections.addSocket(s);
-        sendData(PLAYER_ORDER+':'+playerOrder, playerOrder, -1); //host is playerOrder zero
+        Message m = Message.obtain();
+        m.obj = PLAYER_ORDER+':'+playerOrder;
+        m.what = MSG_INCOMING_DATA;
+        //instead of sending a message to the client from here, I'll let the Activity decide what to do
+        try {
+            client.send(m);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+//        sendData(PLAYER_ORDER+':'+playerOrder, playerOrder, -1); //host is playerOrder zero
     }
 
     public void removePlayer(int playerOrder){
@@ -170,19 +200,42 @@ public class SocketService extends Service implements ReceivesNewConnections{
         IncomingHandler(SocketService service){
             mService = new WeakReference<>(service);
         }
+        private LinkedList<Message> backLog = new LinkedList<>();
+        private boolean paused = false;
         @Override
-        public void handleMessage(Message msg) {
+        public synchronized void handleMessage(Message msg) {
+            switch(msg.what) {
+                case MSG_INCOMING_DATA:
+                    if (paused)
+                        backLog.add(Message.obtain(msg));
+                    else
+                        forwardMessageToClient(msg);
+                    break;
+            }
+        }
+
+        private void pause(){
+            paused = true;
+        }
+
+        private void resume(){
+            if(paused) {
+                while (backLog.peek() != null) {
+                    Message msg = backLog.removeFirst();
+                    forwardMessageToClient(msg);
+                }
+                paused = false;
+            }
+        }
+
+        private void forwardMessageToClient(Message msg){
             SocketService service = mService.get();
             if(service != null && service.client != null){
-                switch(msg.what){
-                    case MSG_INCOMING_DATA:
-                        try {
-                            Message message = Message.obtain(msg);
-                            service.client.send(message);
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
-                        }
-                        break;
+                try {
+                    Message message = Message.obtain(msg);
+                    service.client.send(message);
+                    } catch (RemoteException e) {
+                    e.printStackTrace();
                 }
             }
         }

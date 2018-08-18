@@ -174,6 +174,8 @@ class ActivationVisitor implements CardVisitor {
         return 0;
     }
 
+    //I have an interface for Livestock,
+    //but Player's binary search would be faster than iterating through all cards
     private int getNumLivestock(Player p){
         return p.checkIfCardOwned(new Ranch());
     }
@@ -221,7 +223,9 @@ class ActivationVisitor implements CardVisitor {
     public Integer visit(ExclusiveClub club) {
         //I don't bother checking for shoppingMall here since active player owes everything they have anyway
         if (!myTurn && roll >= 12 && roll <= 14 && activesConstructedLandmarks >= 3 && activationCode == ACTIVATE_RESTAURANTS){
-            int total = players[activeIndex].getMoney();
+            int total = 0;
+            if(club.getNumAvailable() >= 1)
+                total = players[activeIndex].getMoney();
             club.finishRenovation();
             return total;
         }
@@ -322,6 +326,7 @@ class ActivationVisitor implements CardVisitor {
         return 0;
     }
 
+    //I have a NaturalResources interface. I can hardcode all possible natural resources, or use instanceof
     private int getNumNaturalResources(Player p){
         int total = 0;
         total += p.checkIfCardOwned(new Mine());
@@ -414,6 +419,8 @@ class ActivationVisitor implements CardVisitor {
         }
         return 0;
     }
+
+    //So...this is similar to Natural Resources, I have an interface for crops.
     private int getNumCrops(Player p){
         int total = 0;
         total += p.checkIfCardOwned(new AppleOrchard());

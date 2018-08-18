@@ -2,11 +2,13 @@
     <string name="app_name">Dice Town</string>
     <string name="mainMenuHint">Enter Town Name</string>
     <string name="mainMenuJoin">Join Game</string>
+    <string name="join">Join</string>
+    <string name="cancel">Cancel</string>
+    <string name="mainMenuMessage">Please enter host\'s IP address</string>
     <string name="mainMenuHost">Host Game</string>
     <string name="lobbyReady">Ready</string>
     <string name="lobbyUnReady">Not Ready</string>
     <string name="lobbyStartGame">Start Game</string>
-    <string name="coinAmountString">x%1$i</string>
     <string name="toMarketplace">Marketplace</string>
     <string name="backToOwnCity">Return to my city</string>
     <string name="prevTown">prev</string>

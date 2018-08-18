@@ -1,6 +1,5 @@
 package mike.dicetown;
 
-import android.app.Application;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -16,10 +15,11 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-
+//TODO leak canary indicates that I sometmes (rarely) encounter a TextView leaking this activity. My only TextView is in the xml, and I don't mess with it at all, so that'll be interesting...
 public class MainMenu extends AppCompatActivity {
     private String townName = "";
     private String hostIP = "";
@@ -33,7 +33,7 @@ public class MainMenu extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_menu);
-        EditText editText = (EditText)findViewById(R.id.mainMenuEditTownName);
+        EditText editText = findViewById(R.id.mainMenuEditTownName);
         //setting the flags in the xml wouldn't work for me, setting them here worked
         editText.setImeOptions(EditorInfo.IME_FLAG_NO_FULLSCREEN|EditorInfo.IME_FLAG_NO_EXTRACT_UI);
     }
@@ -61,7 +61,6 @@ public class MainMenu extends AppCompatActivity {
 
     @Override
     public void onBackPressed(){
-        Application app = getApplication();
         finishAffinity();
     }
 
@@ -79,31 +78,25 @@ public class MainMenu extends AppCompatActivity {
                         if(hostIP.equals(""))
                             makeToast("That is not an address");
                         else
-                            new CheckAddressTask(hostIP).execute(null, null);
+                            new CheckAddressTask(MainMenu.this, hostIP).execute(null, null);
                     }
                     //if its negative, it closes dialog and does no nothing more
                 }
             };
-            String message = "Please enter host's IP address";
-            displayAlert("Join Game", message, "Join", "Cancel", dialogListener);
+            displayAlert(dialogListener);
         }
     }
 
-    private void displayAlert(String title, String message, String posButton,
-                                  String negButton, AlertDialog.OnClickListener listener){
+    private void displayAlert(AlertDialog.OnClickListener listener){
         final AlertDialog.Builder ipAlert = new AlertDialog.Builder(this);
-        if(title != null)
-            ipAlert.setTitle(title);
-        if(message != null)
-            ipAlert.setMessage("Please enter host's IP address");
+        ipAlert.setTitle(getString(R.string.mainMenuJoin));
+        ipAlert.setMessage("Please enter host's IP address");
         ipEdit = new EditText(this);
         ipEdit.setInputType(InputType.TYPE_CLASS_PHONE);
         ipEdit.setImeOptions(EditorInfo.IME_FLAG_NO_FULLSCREEN|EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         ipAlert.setView(ipEdit);
-        if(posButton != null)
-            ipAlert.setPositiveButton(posButton, listener);
-        if(negButton != null)
-            ipAlert.setNegativeButton(negButton, listener);
+        ipAlert.setPositiveButton(getString(R.string.join), listener);
+        ipAlert.setNegativeButton(getString(R.string.cancel), listener);
 
         ipDialog = ipAlert.show();
     }
@@ -139,7 +132,7 @@ public class MainMenu extends AppCompatActivity {
     }
 
     private void getTownName(){
-        EditText editText = (EditText)findViewById(R.id.mainMenuEditTownName);
+        EditText editText = findViewById(R.id.mainMenuEditTownName);
         townName = editText.getText().toString();
     }
 
@@ -161,14 +154,16 @@ public class MainMenu extends AppCompatActivity {
         toast.show();
     }
 
-    private class CheckAddressTask extends AsyncTask<Void, Void, Boolean[]>{
+    private static class CheckAddressTask extends AsyncTask<Void, Void, Boolean[]>{
         String address;
         private final int UNKNOWN_HOST = 0;  //User wants this to be false (meaning host is known)
         private final int REACHABLE = 1;     //user wants this to be true
         private final int NETWORK_ERROR = 2; //true if a network error occured.
         static final String successfulReach = "Host is reachable";
+        private WeakReference<MainMenu> outerClass;
 
-        CheckAddressTask(String address){
+        CheckAddressTask(MainMenu context, String address){
+            outerClass = new WeakReference<>(context);
             this.address = address;
         }
         @Override
@@ -190,16 +185,20 @@ public class MainMenu extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(Boolean[] result){
-            if(result[REACHABLE] != null) {
-                if(!result[REACHABLE])
-                    continueJoining("Could not connect to host");
+            MainMenu activity = outerClass.get();
+            //if outer class is null or already finishing, the user exited the app
+            if(activity != null && !activity.isFinishing()){
+                if(result[REACHABLE] != null) {
+                    if(!result[REACHABLE])
+                        activity.continueJoining("Could not connect to host");
+                    else
+                        activity.continueJoining(successfulReach);
+                }
+                else if(result[UNKNOWN_HOST])
+                    activity.continueJoining("That is not an address");
                 else
-                    continueJoining(successfulReach);
+                    activity.continueJoining("A network error occurred");
             }
-            else if(result[UNKNOWN_HOST])
-                continueJoining("That is not an address");
-            else
-                continueJoining("A network error occurred");
         }
     }
 }

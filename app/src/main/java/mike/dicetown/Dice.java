@@ -5,12 +5,13 @@ import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.support.v7.app.AlertDialog;
-import android.view.Gravity;
+import android.util.DisplayMetrics;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.PopupWindow;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -41,16 +42,10 @@ class Dice {
             roll2 = roll();
         else
             roll2 = 0;
-
         displayDiceRoll(roll1, roll2, game);
     }
 
     static void getDiceRoll(boolean trainStationOwned, boolean forTunaBoat, int rerollDice, final InGame game){
-        if(game.getPopup() != null) {
-            game.getPopup().dismiss();
-            game.setPopup(null);
-        }
-
         String title;
         boolean oneDice = false;
         boolean twodice = false;
@@ -79,42 +74,79 @@ class Dice {
         else
             code = -1;
 
-        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, code);
+        PickDialogFrag frag = PickDialogFrag.newInstance(title, null, code, game);
         frag.show(game.getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
-    /* This is here and not in the PickDialogFrag because I don't need the user to make
-     * any decision. So I just used a PopupWindow for it.
-     */
+    //I changed this from a popup to a dialog because the active player does actually need to respond
     static void displayDiceRoll(final int d1, final int d2, final InGame game){
         roll1 = d1;
         roll2 = d2;
 
+        PickDialogFrag frag = PickDialogFrag.newInstance(null, null, PickDialogFrag.SHOW_ROLL, d1, d2, game);
+        frag.show(game.getSupportFragmentManager(), PickDialogFrag.tag);
+    }
+
+    static void setRollLayout(android.app.AlertDialog.Builder builder, boolean vertical, final InGame game){
         RelativeLayout diceLayout;
         diceLayout = new RelativeLayout(game);
         diceLayout.setFocusable(true);
 
-        View rootLayout = game.findViewById(R.id.inGameLayout);
-
         int frames = new Random().nextInt(3)+12;
-        AnimationDrawable rollOneAnimation = createDiceAnimation(frames, d1, game);
+        AnimationDrawable rollOneAnimation = createDiceAnimation(frames, roll1, game);
         AnimationDrawable rollTwoAnimation = new AnimationDrawable();
-        if(d2 > 0) {
-            rollTwoAnimation = createDiceAnimation(frames, d2, game);
+        if(roll2 > 0) {
+            rollTwoAnimation = createDiceAnimation(frames, roll2, game);
         }
 
         //I'm doing a bunch of work to make it look all nice and fancy below this comment.
-        PopupWindow popup = new PopupWindow(game);
-        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+
         //finds width of the screen
-        int size = rootLayout.getWidth();
+        DisplayMetrics displayMetrics = game.getResources().getDisplayMetrics();
+        int size;
+        if(vertical)
+            size = displayMetrics.widthPixels;
+        else
+            size = displayMetrics.heightPixels;
+
         size = size/3;
 
-        diceLayout.addView(makeDiceButton(game));
+        diceLayout.addView(createBackground(displayMetrics.widthPixels, displayMetrics.heightPixels, game));
+        addDiceViewToLayout(size, diceLayout, rollOneAnimation, rollTwoAnimation, game);
 
+        builder.setView(diceLayout);
+
+        //start the animations after all the layouts are set up and displaying
+        rollOneAnimation.start();
+        if(roll2 > 0)
+            rollTwoAnimation.start();
+        //TODO add dice roll sounds
+    }
+
+    //all the background does is allow me to click anywhere on the screen to dismiss the dice
+    private static View createBackground(int screenWidth, int screenHeight, final InGame game){
+        Button button = new Button(game);
+        button.setLayoutParams(new ViewGroup.LayoutParams(screenWidth, screenHeight));
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                DialogInfo.getInstance().deactivateDialog();
+                PickDialogFrag frag = (PickDialogFrag) game.getSupportFragmentManager().findFragmentByTag(PickDialogFrag.tag);
+                if(frag != null)
+                    game.getSupportFragmentManager().beginTransaction().remove(frag).commitNow();
+            }
+        });
+
+        button.setBackgroundColor(Color.TRANSPARENT);
+        return button;
+    }
+
+    private static void addDiceViewToLayout(int diceSize, RelativeLayout diceLayout,
+                                            AnimationDrawable rollOneAnimation,
+                                            AnimationDrawable rollTwoAnimation,final InGame game){
         RelativeLayout.LayoutParams params;
         ImageView view;
-        if(d2 > 0) {
+        if(roll2 > 0) {
             //creates an invisible item in the center of the layout,
             //which allows me to put the dice views on either side
             RelativeLayout.LayoutParams invisibleParams = new RelativeLayout.LayoutParams(0, 0);
@@ -125,35 +157,21 @@ class Dice {
             diceLayout.addView(tv);
 
             //add the second dice to the right of the invisible item
-            params = getDiceTwoParams(size, tv.getId());
+            params = getDiceTwoParams(diceSize, tv.getId());
             //rollTwoAnimation will not be null if it gets to this point
             view = createDiceView(rollTwoAnimation, params, game);
             diceLayout.addView(view);
 
             //tell the first dice to the left of the invisible item
-            params = getDiceOneParams(size, true, tv.getId());
+            params = getDiceOneParams(diceSize, true, tv.getId());
         }
         else{
             //first dice needs different parameters depending on whether one or two dice will be shown
-            params = getDiceOneParams(size, false, 0); //centerID won't be checked
+            params = getDiceOneParams(diceSize, false, 0); //centerID won't be checked
         }
         //adding the common parts of the first dice to the layout
         view = createDiceView(rollOneAnimation, params, game);
         diceLayout.addView(view);
-
-        popup.setWidth(rootLayout.getWidth());
-        popup.setHeight(rootLayout.getHeight());
-        popup.setContentView(diceLayout);
-        popup.setBackgroundDrawable(game.getDrawable(R.drawable.background));
-
-        popup.showAtLocation(rootLayout, Gravity.CENTER, 0, 0);
-        game.setPopup(popup);
-        //start the animations after all the layouts are set up and displaying
-        rollOneAnimation.start();
-        if(d2 > 0)
-            rollTwoAnimation.start();
-        //TODO add dice roll sounds
-        //since its a popup, the user can easily close it when it finishes (I think even before that if they want)
     }
 
     private static AnimationDrawable createDiceAnimation(int frames, int lastSideDisplayed, InGame game){
@@ -167,27 +185,6 @@ class Dice {
 
         addToDiceAnimation(animation, lastSideDisplayed, -1, game);
         return animation;
-    }
-
-    private static Button makeDiceButton(final InGame game){
-        RelativeLayout.LayoutParams buttonParams = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        buttonParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        buttonParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
-
-        Button button = new Button(game);
-        button.setText(R.string.continuePrompt);
-        button.setLayoutParams(buttonParams);
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                PopupWindow popup = game.getPopup();
-                if(popup != null)
-                    popup.dismiss();
-                game.setPopup(null);
-                game.finishRoll(roll1, roll2);
-            }
-        });
-        return button;
     }
 
     //centerID does not need to be set to anything if setForTwoDice is false

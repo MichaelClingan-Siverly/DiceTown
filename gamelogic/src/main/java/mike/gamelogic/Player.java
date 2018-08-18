@@ -1,29 +1,23 @@
 package mike.gamelogic;
 
 
-
 import android.support.v4.util.ArraySet;
+
 import java.util.Arrays;
 
 import mike.cards.Airport;
 import mike.cards.AmusementPark;
 import mike.cards.Bakery;
-import mike.cards.BusinessCenter;
 import mike.cards.CardInterface;
 import mike.cards.CityHall;
 import mike.cards.ConstructibleLandmark;
-import mike.cards.ConventionCenter;
+import mike.cards.Deck;
+import mike.cards.Establishment;
 import mike.cards.Harbor;
 import mike.cards.Landmark;
-import mike.cards.Establishment;
-import mike.cards.MovingCompany;
 import mike.cards.RadioTower;
-import mike.cards.RenoCompany;
 import mike.cards.ShoppingMall;
-import mike.cards.TechStartup;
 import mike.cards.TrainStation;
-import mike.cards.TunaBoat;
-import mike.cards.TvStation;
 import mike.cards.WheatField;
 
 /**
@@ -46,7 +40,6 @@ public class Player implements HasCards{
         //add all the landmarks (only City Hall is constructed at start of game)
         myLandmarks = new Landmark[]{new CityHall(), new Harbor(), new TrainStation(),
                 new ShoppingMall(), new AmusementPark(), new RadioTower(), new Airport()};
-
         money = 3;
     }
 
@@ -57,8 +50,11 @@ public class Player implements HasCards{
             //already have a copy of the card
             if (i > -1) {
                 myCity.valueAt(i).addCopy();
-            } else {
-                myCity.add(card);
+            }
+            else {
+                Establishment e = (Establishment)Deck.getCardFromCode(card.getCode());
+                if(e != null)
+                    myCity.add(e);
             }
         }
     }
@@ -85,6 +81,7 @@ public class Player implements HasCards{
     }
 
     public boolean checkIfCardAvailable(Establishment building){
+        //doesnt use
         if(myCity.contains(building)){
             int index = myCity.indexOf(building);
             return myCity.valueAt(index).getNumAvailable() > 0;
@@ -136,13 +133,13 @@ public class Player implements HasCards{
         return name;
     }
 
-    public void removeCopyOfEstablishment(Establishment card, boolean friendly){
+    public void removeCopyOfEstablishment(Establishment card, boolean renovated){
         int i = myCity.indexOf(card);
         if(i >= 0){
-            if(friendly)
-                myCity.valueAt(i).removeCopy();
+            if(renovated)
+                myCity.valueAt(i).removeRenovatedCopy();
             else
-                myCity.valueAt(i).removeCopyFromOpponent();
+                myCity.valueAt(i).removeCopy();
 
             if(myCity.valueAt(i).getNumCopies() == 0)
                 myCity.removeAt(i);

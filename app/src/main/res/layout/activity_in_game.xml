@@ -50,51 +50,72 @@
             <ImageButton
                 android:contentDescription="@string/cHall"
                 android:id="@+id/cityHallButton"
-                android:layout_width="match_parent"
+                android:background="@drawable/city_hall_icon"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
                 style="?android:attr/buttonBarButtonStyle" />
             <ImageButton
                 android:contentDescription="@string/harbor"
                 android:id="@+id/harborButton"
-                android:layout_width="match_parent"
+                android:background="@drawable/harbor_icon"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
                 style="?android:attr/buttonBarButtonStyle" />
             <ImageButton
                 android:contentDescription="@string/tStation"
                 android:id="@+id/trainStationButton"
-                android:layout_width="match_parent"
+                android:background="@drawable/train_station_icon"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
                 style="?android:attr/buttonBarButtonStyle" />
             <ImageButton
                 android:contentDescription="@string/mall"
                 android:id="@+id/shoppingMallButton"
-                android:layout_width="match_parent"
+                android:background="@drawable/shopping_mall_icon"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
                 style="?android:attr/buttonBarButtonStyle" />
             <ImageButton
                 android:contentDescription="@string/aPark"
                 android:id="@+id/amusementParkButton"
-                android:layout_width="match_parent"
+                android:background="@drawable/amusement_park_icon"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
                 style="?android:attr/buttonBarButtonStyle" />
             <ImageButton
                 android:contentDescription="@string/rTower"
                 android:id="@+id/radioTowerButton"
-                android:layout_width="match_parent"
+                android:background="@drawable/radio_tower_icon"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
                 style="?android:attr/buttonBarButtonStyle" />
             <ImageButton
                 android:contentDescription="@string/airport"
                 android:id="@+id/airportButton"
-                android:layout_width="match_parent"
+                android:background="@drawable/airport_icon"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
                 style="?android:attr/buttonBarButtonStyle" />
         </LinearLayout>
 

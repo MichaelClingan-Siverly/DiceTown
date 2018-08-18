@@ -1,9 +1,7 @@
 package mike.dicetown;
 
-import mike.cards.Card;
 import mike.cards.CardInterface;
 import mike.gamelogic.HasCards;
-import mike.gamelogic.Player;
 
 /**
  * Created by mike on 1/13/2018.

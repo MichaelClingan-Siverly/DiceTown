@@ -22,6 +22,7 @@ public abstract class HandlesLogic extends Fragment {
     public abstract void goToPrevTown();
     public abstract void middleButtonPressed();
     public abstract void receiveTechChoice(boolean makeInvestment);
+    public abstract void receiveMoveRenovatedChoice(boolean moveRenovatedCopy);
     public abstract void setLeaveGameCode(String code);
     public abstract int getPlayerOrder();
 

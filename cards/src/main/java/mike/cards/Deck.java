@@ -1,8 +1,5 @@
 package mike.cards;
 
-import android.support.v4.util.ArraySet;
-
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Random;
 
@@ -70,20 +67,6 @@ public class Deck {
                 new RenoCompany(), new Stadium(), new SushiBar(), new TaxOffice(), new TechStartup(),
                 new TunaBoat(), new TvStation(), new Vineyard(), new WheatField(), new Winery()};
     }
-//    private ArraySet<String> createMajorCodes(){
-//        return new ArraySet<>(Arrays.asList(
-//                new BusinessCenter().getCode(), new ConventionCenter().getCode(), new Park().getCode(),
-//                new Publisher().getCode(), new RenoCompany().getCode(), new Stadium().getCode(),
-//                new TaxOffice().getCode(), new TechStartup().getCode(), new TvStation().getCode()));
-//    }
-//    private ArraySet<String> createCheapCodes(){
-//        return new ArraySet<>(Arrays.asList(
-//                new WheatField().getCode(), new Bakery().getCode(), new Ranch().getCode(),
-//                new Cafe().getCode(), new ConvenienceStore().getCode(), new Forest().getCode(),
-//                new SushiBar().getCode(), new FlowerOrchard().getCode(), new FlowerShop().getCode(),
-//                new GeneralStore().getCode(), new CornField().getCode(), new DemoCompany().getCode(),
-//                new FrenchRestaurant().getCode(), new LoanOffice().getCode()));
-//    }
 
     private void addCopiesToPool(Establishment[] establishments, int numPlayers){
         //this was longer before I moved the work to the card.
@@ -102,6 +85,7 @@ public class Deck {
     public final static int pileCodeMajor = 1;
     public final static int pileCodeLow = 2;
     public final static int pileCodeHigh = 3;
+
     /**
      * Draw a card from the deck
      * @param pileCode 1 for major establishments, 2 for establishments costing < 7,
@@ -127,15 +111,7 @@ public class Deck {
             return null;
     }
 
-//    /**
-//     * Check if a deck pile is empty
-//     * @param pileCode 1 for major establishments, 2 for establishments costing < 7,
-//     *                 3 for ones costing > 6
-//     * @return a card belonging to the indicated pile, or null if there are no more cards.
-//     */
-//    public boolean isEmpty(int pileCode){
-//        return deck.isEmpty();
-//    }
+    public static String nullCode = "null";
 
     public static Card getCardFromCode(String cardCode){
         switch(cardCode){
@@ -328,8 +304,10 @@ public class Deck {
                 return "Vineyard";
             case "WF":
                 return "Wheat Field";
-            default:
+            case "W":
                 return "Winery";
+            default:
+                return nullCode;
         }
     }
 }

@@ -1,11 +1,11 @@
 package mike.cards;
 
-import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.support.annotation.NonNull;
+import android.util.DisplayMetrics;
+import android.util.TypedValue;
 import android.view.Gravity;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
@@ -78,6 +78,35 @@ public abstract class Card implements CardInterface{
             setPadding(foregroundRenovated,increaseMargin, true);
             frame.addView(foregroundRenovated);
         }
+    }
+
+    /**
+     *
+     * @param layoutWidth width of the layout this card will be sized in comparison to
+     * @param layoutHeight height of the layout this card will be sized in comparison to
+     * @return int array holding card dimensions in pixels,
+     * with index 0 having the width, and 1 having the height
+     */
+    public static int[] getLargeCardDimensions(int layoutWidth, int layoutHeight, DisplayMetrics d){
+        //max height and width are 225 and 160 (respectively) dp, converted to px
+        int maxHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 225, d);
+        int maxWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 160, d);
+        int height = layoutHeight;
+        int width = layoutWidth;
+
+        //I check both height and width since I want to make sure the whole image fits in the screen
+        int ratio = (int) (1.4 * width);
+        if (height < ratio)
+            width = (int) (.714 * height);
+        else if (height > ratio)
+            height = ratio;
+
+        //If attempted dims is larger than max for one dim, both will be too large. So only check one
+        if (height > maxHeight) {
+            height = maxHeight;
+            width = maxWidth;
+        }
+        return new int[]{width, height};
     }
 
     //adds padding for the textviews on cards which display number of copies owned or renovated

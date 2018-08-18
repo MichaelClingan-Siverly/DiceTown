@@ -16,18 +16,33 @@ public abstract class Establishment extends Card {
 
     public void removeCopy(){
         if(numCopies > 0){
-            if(numRenovated > 0)
-                numRenovated--;
-            numCopies--;
-        }
-    }
-    public void removeCopyFromOpponent(){
-        if(numCopies > 0){
             if(numRenovated == numCopies)
                 numRenovated--;
             numCopies--;
         }
     }
+    public void removeRenovatedCopy(){
+        if(numCopies > 0){
+            numCopies--;
+            if(numRenovated > 0)
+                numRenovated--;
+        }
+    }
+
+//    public void removeCopy(){
+//        if(numCopies > 0){
+//            if(numRenovated > 0)
+//                numRenovated--;
+//            numCopies--;
+//        }
+//    }
+//    public void removeCopyFromOpponent(){
+//        if(numCopies > 0){
+//            if(numRenovated == numCopies)
+//                numRenovated--;
+//            numCopies--;
+//        }
+//    }
 
     /**
      *

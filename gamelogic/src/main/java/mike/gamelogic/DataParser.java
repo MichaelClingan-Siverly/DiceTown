@@ -24,7 +24,7 @@ public class DataParser {
             i++;
             j = i;
         }
-        if(a != null && dataString.length() >= i){
+        if(a != null){
             list.add(new DataMapping(a, dataString.substring(j)));
         }
         return list;
@@ -42,17 +42,18 @@ public class DataParser {
 
     //returns the first int value found in the string, and Integer.MIN_VALUE if no int can be found
     public static int extractInt(String str){
-        String s = "";
+        //uses Stringbuilders instead of appending strings for faster operation
+        StringBuilder s = new StringBuilder();
         for(int i = 0; i < str.length(); i++){
             if(str.charAt(i) >= '0' && str.charAt(i) <= '9'){
-                s+=str.charAt(i);
+                s.append(str.charAt(i));
             }
-            else if(!s.equals(""))
+            else if(s.length() != 0)
                 break;
         }
-        if(s.equals("")) {
+        if(s.length() == 0) {
             return Integer.MIN_VALUE;
         }
-        return Integer.parseInt(s);
+        return Integer.parseInt(s.toString());
     }
 }

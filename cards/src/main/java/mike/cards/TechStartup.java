@@ -71,7 +71,7 @@ public class TechStartup extends MajorEstablishment {
             return;
 
         TextView tv = new TextView(frame.getContext());
-        String text = "value:"+value;
+        String text = "\u2605"+value;
         tv.setText(text);
         tv.setGravity(Gravity.BOTTOM | Gravity.END);
         tv.setTextColor(Color.WHITE);

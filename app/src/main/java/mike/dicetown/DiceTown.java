@@ -13,6 +13,7 @@ import com.squareup.leakcanary.RefWatcher;
  */
 public class DiceTown extends Application {
     private RefWatcher refWatcher;
+    //LeakCanary watches Activities by default. Use this if I want it to watch other stuff
     public static RefWatcher getRefWatcher(Context context) {
         DiceTown application = (DiceTown) context.getApplicationContext();
         return application.refWatcher;
