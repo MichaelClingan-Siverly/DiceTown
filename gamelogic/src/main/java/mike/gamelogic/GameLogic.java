@@ -89,12 +89,6 @@ public class GameLogic extends HandlesLogic {
         super.onAttach(context);
         ui = (UI)context;
     }
-    //because the other onAttach is added in API 23
-    @Override
-    public void onAttach(Activity activity){
-        super.onAttach(activity);
-        ui = (UI)activity;
-    }
 
     @Override
     public void onDetach (){

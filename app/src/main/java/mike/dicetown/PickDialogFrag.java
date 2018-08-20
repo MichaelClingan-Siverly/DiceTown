@@ -174,13 +174,10 @@ public class PickDialogFrag extends DialogFragment {
 
     private AlertDialog.Builder prepareBuilder(){
         Bundle args = getArguments();
-        int code = -1;
         //I don't want to have the Activity set the buttons,
         //as it would cause problems if the Actiivty is destroyed and re-created.
         AlertDialog.Builder builder = new AlertDialog.Builder(game);
         if(args != null) {
-            code = args.getInt("code");
-
             if (args.getString("title") != null)
                 builder.setTitle(args.getString("title"));
             if (args.getString("message") != null)
@@ -225,17 +222,13 @@ public class PickDialogFrag extends DialogFragment {
                 break;
             case PICK_TECH:
                 //positive, negative
-//                setTechChoiceListeners(builder);
             case PICK_REROLL: //expects that caller has set d1 and d2 in the DialogInfo
                 //positive, negative
-//                setRerollListener(builder);
             case PICK_ADD_TWO:
                 //positive, negative
-//                setAddTwoListener(builder);
             case PICK_MOVE_RENOVATED:
                 //positive, negative
                 setBooleanListener(builder);
-//                setMovingRenovatedListeners(builder);
                 break;
             case PICK_ROLL_TWO: //tuna boat or re-rolling after two dice is rolled, forces exactly two dice
                 //positive, neutral
@@ -260,7 +253,6 @@ public class PickDialogFrag extends DialogFragment {
                 break;
             case SHOW_ROLL:
                 showingDice = true;
-//                setDiceRollButton(builder);
                 Dice.setRollLayout(builder, vertical, game);
                 break;
             default: //only viewing towns

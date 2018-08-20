@@ -17,6 +17,7 @@ out/
 # Gradle files
 .gradle/
 build/
+app/release/
 *.gradle
 
 # Local configuration file (sdk path, etc)
@@ -90,6 +91,3 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
-
-
-sdfdf

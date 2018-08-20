@@ -84,7 +84,7 @@ class Dice {
         roll2 = d2;
 
         PickDialogFrag frag = PickDialogFrag.newInstance(null, null, PickDialogFrag.SHOW_ROLL, d1, d2, game);
-        frag.show(game.getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(game.getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
     static void setRollLayout(android.app.AlertDialog.Builder builder, boolean vertical, final InGame game){

@@ -7,10 +7,8 @@ import android.content.ServiceConnection;
 import android.graphics.Color;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
-import android.os.Messenger;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,7 +17,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.lang.ref.WeakReference;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -28,13 +25,14 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 
 import mike.gamelogic.DataParser;
+import mike.socketthreading.ReceivesMessages;
 import mike.socketthreading.SocketService;
 /**
  * Created by mike on 7/11/2017.
  * the pre-game lobby where all players must ready-up before the host may start
  *
  */
-public class Lobby extends AppCompatActivity{
+public class Lobby extends AppCompatActivity implements ReceivesMessages{
     /** One of the extras that are checked when creating this activity. indicate if player is host*/
     public final static String booleanExtraKeyHost = "host";
     /** One of the extras that are checked when creating this activity. name of the town*/
@@ -47,7 +45,6 @@ public class Lobby extends AppCompatActivity{
     private boolean moveToGame = false;
     private String hostIP = null;
     private ArrayList<PlayerReadyContainer> allPlayers;
-    private boolean serviceStarted = false;
     /* this is used same idea as a lock, but I want to allow messages from one player through
      * Necessary because messages are received asynchronously, and a player leaving while another
      * is going through the join process caused (concurrent) bugs
@@ -71,7 +68,6 @@ public class Lobby extends AppCompatActivity{
         dataQueue = new LinkedList<>();
         myPlayerOrder = 0;
         allPlayers = new ArrayList<>();
-        addPlayerToList(myTownName, myPlayerOrder);
     }
 
     public void lobbyButtonListener(View v){
@@ -92,15 +88,16 @@ public class Lobby extends AppCompatActivity{
 
     private void goToGame(){
         moveToGame = true;
+        if(mBoundService != null)
+            mBoundService.stopAcceptingConnections();
+        doUnbindService();
         Intent intent = new Intent(Lobby.this, InGame.class);
         intent.putExtra("myName", myTownName);
         for(int i = 0; i < allPlayers.size(); i++){
             intent.putExtra("p"+i, allPlayers.get(i).townName);
         }
+
         startActivity(intent);
-        if(mBoundService != null)
-            mBoundService.stopAcceptingConnections();
-        doUnbindService();
         finish();
     }
 
@@ -114,10 +111,10 @@ public class Lobby extends AppCompatActivity{
                 /* originally disabled the start button and would re-enable it here, but it
                    wouldnt work even though isClickable was true. so instead I let it stay
                    clickable and do another check when its pressed */
-                if(checkIfAllReady() && host)
+                if(host && checkIfAllReady())
                     b.setText(R.string.lobbyStartGame);
                     //only change a player's button's function if they're the one who changed readiness
-                else if(playerOrder == myPlayerOrder && !host)
+                else if(!host && playerOrder == myPlayerOrder)
                     b.setText(R.string.lobbyUnReady);
             }
             else {
@@ -148,7 +145,7 @@ public class Lobby extends AppCompatActivity{
         //The left column is for the player's town name
         int height = addNameToList(townName, playerOrder);
         //the right column is for the player's ready status
-        addIconToList(townName, playerOrder, height);
+        addIconToList(playerOrder, height);
     }
 
     //returns the height of the TextView
@@ -164,21 +161,18 @@ public class Lobby extends AppCompatActivity{
         return name.getMeasuredHeight();
     }
 
-    private void addIconToList(String townName, int playerOrder, int desiredIconSize){
+    private void addIconToList(int playerOrder, int desiredIconSize){
         ImageView image = allPlayers.get(playerOrder).readyIcon;
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(desiredIconSize, desiredIconSize);
         image.setLayoutParams(params);
         LinearLayout layout = findViewById(R.id.lobbyIconLayout);
         layout.addView(image, playerOrder);
-        //the host is always ready from the momeny they join
-        if(host && townName.equals(myTownName)){
+        //the host is always ready from the moment they join
+
+        if(playerOrder == myPlayerOrder){
             changeReadiness(playerOrder);
-        }
-        //this is here or else the client player's middle button won't display "Ready" properly
-        //(it is called before a player's number is changed, so its for the joining client)
-        if(!host && playerOrder == 0){
-            changeReadiness(0);
-            changeReadiness(0);
+            if(!host)
+                changeReadiness(playerOrder);
         }
     }
 
@@ -229,12 +223,14 @@ public class Lobby extends AppCompatActivity{
         setContentView(R.layout.activity_lobby_layout);
         getExtras();
         if(savedInstanceState != null) {
-            serviceStarted = savedInstanceState.getBoolean("bound", false);
+            handshakingWithPlayer = savedInstanceState.getInt("handshake", -1);
             displayJoinedPlayers(savedInstanceState);
         }
+        else
+            addPlayerToList(myTownName, myPlayerOrder);
         //don't bother starting the service if there is no host IP
         if(!hostIP.equals("error getting address"))
-            startSocketService(serviceStarted);
+            startSocketService();
         else{
             //I decided to boot the host if they can't get the address, not doing so only confused people
             makeToast(hostIP);
@@ -243,23 +239,25 @@ public class Lobby extends AppCompatActivity{
     }
 
     private void displayJoinedPlayers(Bundle savedInstanceState){
-        String[] players = savedInstanceState.getStringArray("otherPlayers");
-        boolean[] readies = savedInstanceState.getBooleanArray("otherReady");
+        String[] players = savedInstanceState.getStringArray("players");
+        boolean[] readies = savedInstanceState.getBooleanArray("readies");
+        myPlayerOrder = savedInstanceState.getInt("myOrder");
         if(players != null && readies != null){
             for(int i = 0; i < players.length; i++){
-                addPlayerToList(players[i], i+1);
-                if(readies[i])
-                    changeReadiness(i+1);
+                addPlayerToList(players[i], i);
+                //joined players default to unready, since they may have readied by now, we'll addresss that
+                if(readies[i] && (!host || i > 0))
+                    changeReadiness(i);
             }
         }
     }
 
-    private void startSocketService(boolean serviceStarted){
+    private void startSocketService(){
         Intent intent = new Intent(Lobby.this, SocketService.class);
         intent.putExtra(SocketService.INTENT_HOST_BOOLEAN, host);
         intent.putExtra(SocketService.INTENT_HOST_IP_STRING, hostIP);
         //binding starts the service, and I'd rather bind since I want to communicate with it
-        doBindService(intent, serviceStarted);
+        doBindService(intent);
     }
 
     @Override
@@ -274,8 +272,7 @@ public class Lobby extends AppCompatActivity{
     @Override
     public void onRestart(){
         super.onRestart();
-        if(mBoundService != null)
-            mBoundService.resumeMessages();
+        doBindService(null);
     }
 
     //work is done here since onStop is not guaranteed to be called
@@ -299,14 +296,18 @@ public class Lobby extends AppCompatActivity{
     @Override
     protected void onSaveInstanceState (Bundle outState){
         outState.putBoolean("bound", mIsBound);
-        String[] otherNames = new String[allPlayers.size()-1];
-        boolean[] otherReadiness = new boolean[otherNames.length];
-        for(int i = 1; i < allPlayers.size(); i++){
-            otherNames[i-1] = allPlayers.get(i).townName;
-            otherReadiness[i-1] = allPlayers.get(i).ready;
+        outState.putInt("myOrder", myPlayerOrder);
+        outState.putInt("handshake", handshakingWithPlayer);
+
+        String[] allNames = new String[allPlayers.size()];
+        boolean[] allReadiness = new boolean[allNames.length];
+        for(int i = 0; i < allPlayers.size(); i++){
+            allNames[i] = allPlayers.get(i).townName;
+            allReadiness[i] = allPlayers.get(i).ready;
         }
-        outState.putStringArray("otherPlayers", otherNames);
-        outState.putBooleanArray("otherReady", otherReadiness);
+        outState.putStringArray("players", allNames);
+        outState.putBooleanArray("readies", allReadiness);
+
         doUnbindService();
         super.onSaveInstanceState(outState);
     }
@@ -348,7 +349,6 @@ public class Lobby extends AppCompatActivity{
     //the SocketService. Communicate with it by calling its methods
     private SocketService mBoundService;
     private boolean mIsBound = false;
-    private final Messenger mMessenger = new Messenger(new IncomingHandler(Lobby.this));
     private ServiceConnection mConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
             // This is called when the connection with the service has been
@@ -360,9 +360,8 @@ public class Lobby extends AppCompatActivity{
             //I don't get the Messenger from the service because this runs on the same thread as it
             //Because its on the same thread, I can use mBoundService and interact with it more easily
             //But I do give the service a Messenger so it can interact with me
-            mBoundService.registerClient(mMessenger);
-            if(serviceStarted)
-                mBoundService.resumeMessages();
+            mBoundService.registerClient(Lobby.this);
+            mBoundService.resumeMessages();
         }
         public void onServiceDisconnected(ComponentName className) {
             // This is called when the connection with the service has been
@@ -373,15 +372,14 @@ public class Lobby extends AppCompatActivity{
         }
     };
     //I chose to have this get an intent parameter so I may pass info to the service when creating it
-    void doBindService(Intent intent, boolean serviceStarted) {
+    void doBindService(Intent intent) {
         Intent mIntent;
         if(intent == null)
             mIntent = new Intent(Lobby.this, SocketService.class);
         else
             mIntent = intent;
         //I start the service first, otherwise the service is destroyed when unbound, which I don't want to do
-        if(!serviceStarted)
-            startService(mIntent);
+        startService(mIntent);
         // Establish a connection with the service.  We use an explicit
         // class name because we want a specific service implementation that
         // we know will be running in our own process (and thus won't be
@@ -392,37 +390,12 @@ public class Lobby extends AppCompatActivity{
     void doUnbindService() {
         if (mIsBound) {
             // Detach our existing connection.
-            mBoundService.unregisterClient(mMessenger);
+            mBoundService.unregisterClient(Lobby.this);
             unbindService(mConnection);
             mIsBound = false;
         }
     }
-    private static class IncomingHandler extends Handler{
-        private final WeakReference<Lobby> mActivity;
-        IncomingHandler(Lobby activity){
-            mActivity = new WeakReference<>(activity);
-        }
-        @Override
-        public void handleMessage(Message msg) {
-            Lobby activity = mActivity.get();
-            if (activity != null) {
-                switch(msg.what){
-                    case SocketService.MSG_INCOMING_DATA:
-                        if(activity.handshakingWithPlayer >= 0 && msg.arg1 != activity.handshakingWithPlayer)
-                            activity.dataQueue.addLast((String)msg.obj);
-                        else
-                            activity.handleIncomingData((String)msg.obj);
-                        break;
-                    case SocketService.MSG_CANT_JOIN_GAME:
-                        activity.makeToast("Could not connect to host");
-                        activity.onBackPressed();
-                        break;
-                    default:
-                        super.handleMessage(msg);
-                }
-            }
-        }
-    }
+
     /**
      * key for data indicating that readiness should be changed
      */
@@ -584,5 +557,21 @@ public class Lobby extends AppCompatActivity{
         }
         //I want to make sure that the new name isn't also taken
         return checkName(name+s);
+    }
+
+    @Override
+    public void handleMessage(Message msg) {
+        switch(msg.what){
+            case SocketService.MSG_INCOMING_DATA:
+                if(handshakingWithPlayer >= 0 && msg.arg1 != handshakingWithPlayer)
+                    dataQueue.addLast((String)msg.obj);
+                else
+                    handleIncomingData((String)msg.obj);
+                break;
+            case SocketService.MSG_CANT_JOIN_GAME:
+                makeToast("Could not connect to host");
+                onBackPressed();
+                break;
+        }
     }
 }

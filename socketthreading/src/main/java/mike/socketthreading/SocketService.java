@@ -7,7 +7,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.os.RemoteException;
+import android.util.Log;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -17,7 +17,7 @@ import java.net.Socket;
 import java.util.LinkedList;
 
 public class SocketService extends Service implements ReceivesNewConnections{
-    private Messenger client;
+    private ReceivesMessages client;
     private AcceptConnections serverListenerTask = null;
     private GameClientConnection connections = null;
     private boolean previouslyStarted = false;
@@ -41,12 +41,12 @@ public class SocketService extends Service implements ReceivesNewConnections{
 
     /**
      * Registers a (presumably Activity) client so that this service may interact with it
-     * @param clientsMessenger a Messenger belonging to the Activity this should be interacting with
+     * @param activity the Activity this should be interacting with
      * @return true if there was no other client and this one was registered, false otherwise
      */
-    public boolean registerClient(Messenger clientsMessenger){
+    public boolean registerClient(ReceivesMessages activity){
         if(client == null) {
-            client = clientsMessenger;
+            client = activity;
             if (cantConnectFlag)
                 kickUser();
             return true;
@@ -56,11 +56,11 @@ public class SocketService extends Service implements ReceivesNewConnections{
 
     /**
      * Tries to unregister a (presumably Activity) clicnt
-     * @param clientsMessenger compared to the client's Messenger stored in class,
+     * @param activity compared to the client's Activity stored in class,
      *                         will be unregistered if it is the same
      */
-    public void unregisterClient(Messenger clientsMessenger){
-        if(client.equals(clientsMessenger))
+    public void unregisterClient(ReceivesMessages activity){
+        if(client.equals(activity))
             client = null;
     }
 
@@ -79,7 +79,7 @@ public class SocketService extends Service implements ReceivesNewConnections{
      * Tell the service that while an Activity should still be bound, it will be unable to
      * process Messages (such as when an Activity is paused)
      */
-    public synchronized void pauseMessages(){
+    public void pauseMessages(){
         if(handler != null)
             handler.pause();
     }
@@ -88,7 +88,7 @@ public class SocketService extends Service implements ReceivesNewConnections{
      * All messages received while paused should be passed on in FIFO order, before any new ones
      * are processed. If pauseMessages was not called previously, this does nothing.
      */
-    public synchronized void resumeMessages(){
+    public void resumeMessages(){
         if(handler != null)
             handler.resume();
     }
@@ -173,12 +173,7 @@ public class SocketService extends Service implements ReceivesNewConnections{
         m.obj = PLAYER_ORDER+':'+playerOrder;
         m.what = MSG_INCOMING_DATA;
         //instead of sending a message to the client from here, I'll let the Activity decide what to do
-        try {
-            client.send(m);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-//        sendData(PLAYER_ORDER+':'+playerOrder, playerOrder, -1); //host is playerOrder zero
+        client.handleMessage(m);
     }
 
     public void removePlayer(int playerOrder){
@@ -206,23 +201,26 @@ public class SocketService extends Service implements ReceivesNewConnections{
         public synchronized void handleMessage(Message msg) {
             switch(msg.what) {
                 case MSG_INCOMING_DATA:
-                    if (paused)
+                    if (paused) {
                         backLog.add(Message.obtain(msg));
+                    }
                     else
                         forwardMessageToClient(msg);
                     break;
             }
         }
 
-        private void pause(){
+        private synchronized void pause(){
             paused = true;
         }
 
-        private void resume(){
+        private synchronized void resume(){
             if(paused) {
                 while (backLog.peek() != null) {
                     Message msg = backLog.removeFirst();
-                    forwardMessageToClient(msg);
+//                    //TODO since dice displays are the only non-blocking dialogs, this will work...but I'd rather not do it this way. I'd like to make newer dialogs just destroy it or not allow it to be created
+//                    if(!(backLog.peek() != null && ((String)msg.obj).startsWith("d1")))
+                        forwardMessageToClient(msg);
                 }
                 paused = false;
             }
@@ -231,13 +229,11 @@ public class SocketService extends Service implements ReceivesNewConnections{
         private void forwardMessageToClient(Message msg){
             SocketService service = mService.get();
             if(service != null && service.client != null){
-                try {
-                    Message message = Message.obtain(msg);
-                    service.client.send(message);
-                    } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
+                Message message = Message.obtain(msg);
+                service.client.handleMessage(message);
             }
+            else
+                Log.d("meh-SocketService", "can't forward a message with a null activity");
         }
     }
 
@@ -274,14 +270,7 @@ public class SocketService extends Service implements ReceivesNewConnections{
     private void kickUser(){
         Message m = Message.obtain();
         m.what= MSG_CANT_JOIN_GAME;
-        try {
-            client.send(m);
-        }
-        catch(RemoteException re){
-            re.printStackTrace();
-            //I don't want to let the game crash for a user, but not sure how I should be handling
-            //some of these exceptions I don't expect to be getting
-        }
+        client.handleMessage(m);
     }
 
     @Override

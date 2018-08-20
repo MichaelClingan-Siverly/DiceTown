@@ -8,10 +8,8 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
-import android.os.Messenger;
 import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.util.DisplayMetrics;
@@ -28,7 +26,6 @@ import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 import mike.cards.Card;
@@ -40,18 +37,18 @@ import mike.gamelogic.HandlesLogic;
 import mike.gamelogic.HasCards;
 import mike.gamelogic.Player;
 import mike.gamelogic.UI;
+import mike.socketthreading.ReceivesMessages;
 import mike.socketthreading.SocketService;
 
-public class InGame extends AppCompatActivity implements UI {
+public class InGame extends AppCompatActivity implements UI, ReceivesMessages {
     private SocketService mBoundService;
     private boolean mIsBound = false;
-    private final Messenger mMessenger = new Messenger(new IncomingHandler(InGame.this));
     private HandlesLogic logic;
     //For things which don't need to persist through screen changes. Stored so I can dismiss it
     private PopupWindow popup;
     //used when users close the pick dialog before a choice is made in order to view towns
     private String lastMidButtonText;
-    private boolean attachLogic = true;
+    private boolean attachLogic;
 
     //requires v to have a tag set with the resource id of the card
     View.OnClickListener cardClickListener = new View.OnClickListener() {
@@ -83,6 +80,8 @@ public class InGame extends AppCompatActivity implements UI {
             lastMidButtonText = savedInstanceState.getString("lastText");
             b.setText(savedInstanceState.getString("nowText"));
         }
+        else
+            attachLogic = true;
 
         initButtons();
         loadLogicFragment();
@@ -97,14 +96,15 @@ public class InGame extends AppCompatActivity implements UI {
             outState.putString("lastText", lastMidButtonText);
             outState.putString("nowText", ((Button)findViewById(R.id.inGameMiddleButton)).getText().toString());
         }
+        doUnbindService();
         super.onSaveInstanceState(outState);
     }
 
     @Override
     public void onRestart(){
         super.onRestart();
-        if(mBoundService != null)
-            mBoundService.resumeMessages();
+        attachLogic = false;
+        doBindService(null);
     }
 
     //work is done here since onStop is not guaranteed to be called
@@ -180,7 +180,7 @@ public class InGame extends AppCompatActivity implements UI {
         else
             message = getString(R.string.otherWin, winnerName);
         PickDialogFrag frag = PickDialogFrag.newInstance(getString(R.string.gameOver), message, PickDialogFrag.NO_PICK_GAME_WON, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
     private void stopService(){
@@ -304,7 +304,7 @@ public class InGame extends AppCompatActivity implements UI {
     public void pickMoveRenovated(String cardName, String message){
         String title = "Move renovated copy of "+cardName+'?';
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_MOVE_RENOVATED, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     void receiveMoveRenovated(boolean choice){
         logic.receiveMoveRenovatedChoice(choice);
@@ -317,7 +317,7 @@ public class InGame extends AppCompatActivity implements UI {
 
         String message = "(name : money)";
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_PLAYER, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void selectPlayer(String playerName){
         logic.selectPlayer(playerName);
@@ -331,7 +331,7 @@ public class InGame extends AppCompatActivity implements UI {
 
         String title = "Select A Card for "+ titleMessage;
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_PLAYERS_CARD, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void selectCard(Card pickedCard, String owner){
         logic.selectCard(pickedCard, owner);
@@ -346,7 +346,7 @@ public class InGame extends AppCompatActivity implements UI {
         final String title = "Buy A Card    (money: "+me.getMoney()+')';
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_MARKETS_CARD, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
     @Override
@@ -356,7 +356,7 @@ public class InGame extends AppCompatActivity implements UI {
         String title = "Choose landmark to demolish";
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, null, PickDialogFrag.PICK_LANDMARK, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
 
 
@@ -366,7 +366,7 @@ public class InGame extends AppCompatActivity implements UI {
         String message = "You currently have \u2605"+ currentInvestment+ " invested";
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_TECH, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveTechChoice(boolean invest){
         logic.receiveTechChoice(invest);
@@ -377,7 +377,7 @@ public class InGame extends AppCompatActivity implements UI {
         String title = "Add 2 to your roll?";
         String message = "original roll total: "+(d1+d2);
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_ADD_TWO, d1, d2, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveAddTwoChoice(boolean addTwo, int d1, int d2){
         logic.replyToAddTwo(addTwo, d1, d2);
@@ -393,7 +393,7 @@ public class InGame extends AppCompatActivity implements UI {
             message = "original roll: "+d1;
 
         PickDialogFrag frag = PickDialogFrag.newInstance(title, message, PickDialogFrag.PICK_REROLL, d1, d2, this);
-        frag.show(getSupportFragmentManager(), PickDialogFrag.tag);
+        frag.showNow(getSupportFragmentManager(), PickDialogFrag.tag);
     }
     public void receiveRerollChoice(boolean reroll, int d1, int d2){
         logic.radioReply(reroll, d1, d2);
@@ -553,14 +553,14 @@ public class InGame extends AppCompatActivity implements UI {
             int code = DialogInfo.getInstance().getCode();
             // add the fragment
             frag = PickDialogFrag.newInstance(title, message, code, this);
-            frag.show(manager, PickDialogFrag.tag);
+            frag.showNow(manager, PickDialogFrag.tag);
         }
     }
 
     private ServiceConnection mConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
             mBoundService = ((SocketService.LocalBinder)service).getService();
-            mBoundService.registerClient(mMessenger);
+            mBoundService.registerClient(InGame.this);
 
             if(attachLogic)
                 StartLogic();
@@ -619,30 +619,16 @@ public class InGame extends AppCompatActivity implements UI {
     private void doUnbindService() {
         if (mIsBound) {
             // Detach our existing connection.
-            mBoundService.unregisterClient(mMessenger);
+            mBoundService.unregisterClient(InGame.this);
             unbindService(mConnection);
             mIsBound = false;
         }
     }
 
-    private static class IncomingHandler extends Handler {
-        private final WeakReference<InGame> mActivity;
-        IncomingHandler(InGame activity){
-            mActivity = new WeakReference<>(activity);
-        }
-        @Override
-        public void handleMessage(Message msg) {
-            InGame activity = mActivity.get();
-            if (activity != null) {
-                switch(msg.what){
-                    case SocketService.MSG_INCOMING_DATA:
-                        activity.handleIncomingData(msg.arg1, (String)msg.obj);
-                        break;
-                    default:
-                        super.handleMessage(msg);
-                }
-            }
-        }
+    @Override
+    public void handleMessage(Message msg) {
+        if(msg.what == SocketService.MSG_INCOMING_DATA)
+            handleIncomingData(msg.arg1, (String)msg.obj);
     }
 
     //I use the playerOrder who sent it in case I must reply to that specific user (or all users but that one)
