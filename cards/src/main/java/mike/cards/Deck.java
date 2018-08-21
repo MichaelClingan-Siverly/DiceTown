@@ -242,7 +242,7 @@ public class Deck {
                 return "Corn Field";
             case "DC":
                 return "Demo Company";
-            case "EC":
+            case "EC": //members only club
                 return "Exclusive Club";
             case "FA": //familyRestaurant
                 return "Sports Bar";
@@ -260,14 +260,14 @@ public class Deck {
                 return "Furniture Factory";
             case "GS":
                 return "General Store";
-            case "H":
+            case "H": //harbor
                 return "Wharf";
-            case "LO":
+            case "LO": //loan office
                 return "Payday Lender";
             case "MB":
                 return "Fishing Boat";
-            case "M":
-                return "Mine";
+            case "M": //mine
+                return "Gold Mine";
             case "MC":
                 return "Moving Company";
             case "P": //park

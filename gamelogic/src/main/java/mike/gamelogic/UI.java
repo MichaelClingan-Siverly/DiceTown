@@ -1,9 +1,7 @@
 package mike.gamelogic;
 
-import android.support.v4.util.ArraySet;
-
-import mike.cards.Landmark;
 import mike.cards.Establishment;
+import mike.cards.Landmark;
 
 /**
  * Created by mike on 7/30/2017.

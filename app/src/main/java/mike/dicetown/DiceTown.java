@@ -1,7 +1,6 @@
 package mike.dicetown;
 
 import android.app.Application;
-import android.content.Context;
 import android.content.Intent;
 
 //import com.squareup.leakcanary.LeakCanary;

@@ -1,6 +1,5 @@
 package mike.gamelogic;
 
-import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.v4.util.ArraySet;
@@ -12,6 +11,7 @@ import mike.cards.Airport;
 import mike.cards.AmusementPark;
 import mike.cards.BusinessCenter;
 import mike.cards.Card;
+import mike.cards.CityHall;
 import mike.cards.ConstructibleLandmark;
 import mike.cards.ConventionCenter;
 import mike.cards.Deck;
@@ -452,7 +452,7 @@ public class GameLogic extends HandlesLogic {
                     ui.sendMessage(REQUEST_RENO+":0", activePlayer, -1);
                 else {
                     selectCardCode = SELECT_RENO;
-                    ui.pickCard(players, players[myPlayerOrder].getName(), "Renovation Company", true);
+                    ui.pickCard(players, players[myPlayerOrder].getName(), Deck.getCardNameFromCode(new RenoCompany().getCode()), true);
                 }
             }
             else {
@@ -480,7 +480,7 @@ public class GameLogic extends HandlesLogic {
                 selectCardCode = SELECT_CONVENTION;
                 if(activePlayer == 0 && myPlayerOrder == 0) {
                     Player[] me = new Player[]{players[0]};
-                    ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", false);
+                    ui.pickCard(me, players[myPlayerOrder].getName(), Deck.getCardNameFromCode(new ConventionCenter().getCode()), false);
                 }
                 else
                     ui.sendMessage(REQUEST_CONVENTION+":0", activePlayer, -1);
@@ -552,7 +552,7 @@ public class GameLogic extends HandlesLogic {
             if(activePlayer == 0 && myPlayerOrder == 0) {
                 selectCardCode = SELECT_BC_MINE;
                 Player[] me = new Player[]{players[0]};
-                ui.pickCard(me, players[myPlayerOrder].getName(), "Business Center: card to give", true);
+                ui.pickCard(me, players[myPlayerOrder].getName(), Deck.getCardNameFromCode(new BusinessCenter().getCode())+": card to give", true);
             }
             else {
                 ui.sendMessage(REQUEST_TRADE_CARD+":0", activePlayer, -1);
@@ -574,7 +574,7 @@ public class GameLogic extends HandlesLogic {
             }
         }
         selectCardCode = SELECT_BC_THEIRS;
-        ui.pickCard(p, players[myPlayerOrder].getName(), "Business Center: card to take", true);
+        ui.pickCard(p, players[myPlayerOrder].getName(), Deck.getCardNameFromCode(new BusinessCenter().getCode())+": card to take", true);
     }
 
     private void sendTradeCardMessageFromActive(boolean inactivesCardRenovated){
@@ -760,7 +760,7 @@ public class GameLogic extends HandlesLogic {
         //checks City Hall
         if(players[activePlayer].getMoney() == 0){
             players[activePlayer].makeMoney(1);
-            ui.makeToast("Gaining money from City Hall");
+            ui.makeToast("Gaining money from "+Deck.getCardNameFromCode(new CityHall().getCode()));
             moneyStuff(activePlayer, 1, false);
         }
         if(myPlayerOrder == 0){
@@ -1010,7 +1010,7 @@ public class GameLogic extends HandlesLogic {
                     break;
                 case REQUEST_TV_STATION:
                     selectCardCode = SELECT_PLAYER_TV;
-                    ui.pickPlayer(players, myPlayerOrder, "pick player for TV Station");
+                    ui.pickPlayer(players, myPlayerOrder, "pick player for "+Deck.getCardNameFromCode(new TvStation().getCode()));
                     break;
                 case REPLY_TV_STATION: {
                     selectCardCode = 0;
@@ -1035,7 +1035,7 @@ public class GameLogic extends HandlesLogic {
                 case REQUEST_TRADE_CARD: {
                     selectCardCode = SELECT_BC_MINE;
                     Player[] me = new Player[]{players[myPlayerOrder]};
-                    ui.pickCard(me, players[myPlayerOrder].getName(), "Business Center: card to give", true);
+                    ui.pickCard(me, players[myPlayerOrder].getName(), Deck.getCardNameFromCode(new BusinessCenter().getCode())+": card to give", true);
                     break;
                 }
                 case REPLY_TRADE_CARD: {
@@ -1073,7 +1073,7 @@ public class GameLogic extends HandlesLogic {
                 }
                 case REQUEST_RENO:
                     selectCardCode = SELECT_RENO;
-                    ui.pickCard(players, players[myPlayerOrder].getName(), "Renovation Company", true);
+                    ui.pickCard(players, players[myPlayerOrder].getName(), Deck.getCardNameFromCode(new RenoCompany().getCode()), true);
                     break;
                 case REPLY_RENO:
                     selectCardCode = 0;
@@ -1118,7 +1118,7 @@ public class GameLogic extends HandlesLogic {
                     selectCardCode = SELECT_CONVENTION;
                     if(activePlayer == myPlayerOrder) {
                         Player[] me = new Player[]{players[activePlayer]};
-                        ui.pickCard(me, players[myPlayerOrder].getName(), "Convention Center", false);
+                        ui.pickCard(me, players[myPlayerOrder].getName(), Deck.getCardNameFromCode(new ConventionCenter().getCode()), false);
                     }
                     break;
                 case REPLY_CONVENTION:
@@ -1137,7 +1137,7 @@ public class GameLogic extends HandlesLogic {
                     else if (map.value.equals("0")) {
                         if (players[activePlayer].checkIfCardAvailable(new Airport())) {
                             players[activePlayer].makeMoney(10);
-                            ui.makeToast(players[activePlayer].getName() + " makes $10 from Airport");
+                            ui.makeToast(players[activePlayer].getName() + " makes $10 from "+Deck.getCardNameFromCode(new Airport().getCode()));
                         }
                         else {
                             ui.makeToast(players[activePlayer].getName() + " doesn't buy anything");

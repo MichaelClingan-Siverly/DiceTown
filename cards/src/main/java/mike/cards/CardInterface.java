@@ -1,6 +1,5 @@
 package mike.cards;
 
-import android.util.DisplayMetrics;
 import android.widget.FrameLayout;
 
 /**

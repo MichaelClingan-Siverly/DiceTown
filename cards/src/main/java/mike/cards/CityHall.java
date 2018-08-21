@@ -1,8 +1,6 @@
 package mike.cards;
 
 
-import android.content.res.Resources;
-
 /**
  * Created by mike on 7/26/2017.
  */
