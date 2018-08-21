@@ -7,7 +7,6 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
-import android.util.Log;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -232,8 +231,6 @@ public class SocketService extends Service implements ReceivesNewConnections{
                 Message message = Message.obtain(msg);
                 service.client.handleMessage(message);
             }
-            else
-                Log.d("meh-SocketService", "can't forward a message with a null activity");
         }
     }
 
