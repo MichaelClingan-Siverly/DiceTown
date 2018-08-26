@@ -41,16 +41,12 @@ public class SocketService extends Service implements ReceivesNewConnections{
     /**
      * Registers a (presumably Activity) client so that this service may interact with it
      * @param activity the Activity this should be interacting with
-     * @return true if there was no other client and this one was registered, false otherwise
      */
-    public boolean registerClient(ReceivesMessages activity){
-        if(client == null) {
-            client = activity;
-            if (cantConnectFlag)
-                kickUser();
-            return true;
-        }
-        return false;
+    public void registerClient(ReceivesMessages activity){
+        //no longer checks if it already has a client, and just registers the new one regardless
+        client = activity;
+        if (cantConnectFlag)
+            kickUser();
     }
 
     /**
@@ -217,8 +213,6 @@ public class SocketService extends Service implements ReceivesNewConnections{
             if(paused) {
                 while (backLog.peek() != null) {
                     Message msg = backLog.removeFirst();
-//                    //TODO since dice displays are the only non-blocking dialogs, this will work...but I'd rather not do it this way. I'd like to make newer dialogs just destroy it or not allow it to be created
-//                    if(!(backLog.peek() != null && ((String)msg.obj).startsWith("d1")))
                         forwardMessageToClient(msg);
                 }
                 paused = false;

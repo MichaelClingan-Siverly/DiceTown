@@ -275,14 +275,19 @@ public class Lobby extends AppCompatActivity implements ReceivesMessages{
         super.onRestart();
         doBindService(null);
     }
+    @Override
+    public void onResume(){
+        super.onResume();
+        if(mBoundService != null)
+            mBoundService.resumeMessages();
+    }
 
     //work is done here since onStop is not guaranteed to be called
     @Override
     public void onPause(){
-        if(isFinishing() && !moveToGame){
+        if(isFinishing() && !moveToGame)
             stopService();
-        }
-        else
+        else if(mBoundService != null)
             mBoundService.pauseMessages();
         super.onPause();
     }
@@ -296,7 +301,6 @@ public class Lobby extends AppCompatActivity implements ReceivesMessages{
 
     @Override
     protected void onSaveInstanceState (Bundle outState){
-        outState.putBoolean("bound", mIsBound);
         outState.putInt("myOrder", myPlayerOrder);
         outState.putInt("handshake", handshakingWithPlayer);
 
@@ -309,16 +313,16 @@ public class Lobby extends AppCompatActivity implements ReceivesMessages{
         outState.putStringArray("players", allNames);
         outState.putBooleanArray("readies", allReadiness);
 
-        doUnbindService();
         super.onSaveInstanceState(outState);
     }
 
     private void stopService(){
-        if(mIsBound){
+        if(mBoundService != null){
             mBoundService.sendData(SocketService.LEAVE_GAME+":"+myPlayerOrder, -1, -1);
             stopService(new Intent(Lobby.this, SocketService.class));
             doUnbindService();
         }
+
     }
 
     /* https://stackoverflow.com/a/18638588 */
@@ -349,7 +353,6 @@ public class Lobby extends AppCompatActivity implements ReceivesMessages{
      */
     //the SocketService. Communicate with it by calling its methods
     private SocketService mBoundService;
-    private boolean mIsBound = false;
     private ServiceConnection mConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
             // This is called when the connection with the service has been
@@ -372,8 +375,9 @@ public class Lobby extends AppCompatActivity implements ReceivesMessages{
             mBoundService = null;
         }
     };
+
     //I chose to have this get an intent parameter so I may pass info to the service when creating it
-    void doBindService(Intent intent) {
+    private void doBindService(Intent intent) {
         Intent mIntent;
         if(intent == null)
             mIntent = new Intent(Lobby.this, SocketService.class);
@@ -386,14 +390,14 @@ public class Lobby extends AppCompatActivity implements ReceivesMessages{
         // we know will be running in our own process (and thus won't be
         // supporting component replacement by other applications).
         bindService(mIntent, mConnection, Context.BIND_AUTO_CREATE);
-        mIsBound = true;
     }
-    void doUnbindService() {
-        if (mIsBound) {
+
+    private void doUnbindService() {
+        if (mBoundService != null) {
             // Detach our existing connection.
             mBoundService.unregisterClient(Lobby.this);
             unbindService(mConnection);
-            mIsBound = false;
+            mBoundService = null;
         }
     }
 

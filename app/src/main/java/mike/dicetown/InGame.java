@@ -42,7 +42,6 @@ import mike.socketthreading.SocketService;
 
 public class InGame extends AppCompatActivity implements UI, ReceivesMessages {
     private SocketService mBoundService;
-    private boolean mIsBound = false;
     private HandlesLogic logic;
     //For things which don't need to persist through screen changes. Stored so I can dismiss it
     private PopupWindow popup;
@@ -96,7 +95,7 @@ public class InGame extends AppCompatActivity implements UI, ReceivesMessages {
             outState.putString("lastText", lastMidButtonText);
             outState.putString("nowText", ((Button)findViewById(R.id.inGameMiddleButton)).getText().toString());
         }
-        doUnbindService();
+//        doUnbindService();
         super.onSaveInstanceState(outState);
     }
 
@@ -105,6 +104,12 @@ public class InGame extends AppCompatActivity implements UI, ReceivesMessages {
         super.onRestart();
         attachLogic = false;
         doBindService(null);
+    }
+    @Override
+    public void onResume(){
+        super.onResume();
+        if(mBoundService != null)
+            mBoundService.resumeMessages();
     }
 
     //work is done here since onStop is not guaranteed to be called
@@ -116,7 +121,7 @@ public class InGame extends AppCompatActivity implements UI, ReceivesMessages {
             killPopup();
             stopService();
         }
-        else
+        else if(mBoundService != null)
             mBoundService.pauseMessages();
         super.onPause();
     }
@@ -184,12 +189,12 @@ public class InGame extends AppCompatActivity implements UI, ReceivesMessages {
     }
 
     private void stopService(){
-        if(mIsBound){
+        if(mBoundService != null){
             int myOrder = logic.getPlayerOrder();
             mBoundService.sendData(SocketService.LEAVE_GAME+":"+myOrder, -1, -1);
             doUnbindService();
             stopService(new Intent(InGame.this, SocketService.class));
-            mIsBound = false; //in case this ends up being called again
+            mBoundService = null;
         }
     }
 
@@ -613,15 +618,14 @@ public class InGame extends AppCompatActivity implements UI, ReceivesMessages {
         // we know will be running in our own process (and thus won't be
         // supporting component replacement by other applications).
         bindService(mIntent, mConnection, Context.BIND_AUTO_CREATE);
-        mIsBound = true;
     }
 
     private void doUnbindService() {
-        if (mIsBound) {
+        if (mBoundService != null) {
             // Detach our existing connection.
             mBoundService.unregisterClient(InGame.this);
             unbindService(mConnection);
-            mIsBound = false;
+            mBoundService = null;
         }
     }
 
